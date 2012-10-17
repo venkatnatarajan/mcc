@@ -1,12 +1,15 @@
 #ifndef __MCC_COMMON__
 #define __MCC_COMMON__
 
+typedef unsigned int MCC_BOOLEAN;
+typedef unsigned int MCC_MEM_SIZE;
+
 /*
  * End points
  */
-typedef uint MCC_CORE;
-typedef uint MCC_NODE;
-typedef uint MCC_PORT;
+typedef unsigned int MCC_CORE;
+typedef unsigned int MCC_NODE;
+typedef unsigned int MCC_PORT;
 
 typedef struct mcc_endpoint {
 	MCC_CORE core;
@@ -51,23 +54,23 @@ typedef struct endpoint_map_struct {
  
 typedef struct mcc_bookeeping_struct {
 
-	// Flag that indicates if this struct has been already initialized
-	boolean init_flag;
+	/* Flag that indicates if this struct has been already initialized */
+	MCC_BOOLEAN init_flag;
 
-	// List of buffers for each endpoint
+	/* List of buffers for each endpoint */
 	MCC_RECEIVE_LIST r_lists[MCC_ATTR_MAX_RECEIVE_ENDPOINTS];
 	
-	// List of free buffers
+	/* List of free buffers */
 	MCC_RECEIVE_LIST free_list;
 
-	// Each core has it's own queue of received signals
+	/* Each core has it's own queue of received signals */
 	MCC_SIGNAL signals_received[MCC_NUM_CORES][MCC_MAX_OUTSTANDING_SIGNALS];
-	uint signal_queue_head[MCC_NUM_CORES], signal_queue_tail[MCC_NUM_CORES];
+	unsigned int signal_queue_head[MCC_NUM_CORES], signal_queue_tail[MCC_NUM_CORES];
 
-	// Endpoint map
+	/* Endpoint map */
 	MCC_ENDPOINT_MAP_ITEM endpoint_table[MCC_ATTR_MAX_RECEIVE_ENDPOINTS];
 
-	// Receive buffers
+	/* Receive buffers */
 	MCC_RECEIVE_BUFFER r_buffers[MCC_ATTR_NUM_RECEIVE_BUFFERS];
 	
 } MCC_BOOKEEPING_STRUCT;
@@ -82,17 +85,17 @@ struct mcc_bookeeping_struct * bookeeping_data;
 /*
  * Errors
  */
-#define MCC_SUCCESS	 (0) 	 // function returned successfully
-#define MCC_ERR_TIMEOUT	 (1) // blocking function timed out before completing
-#define MCC_ERR_INVAL	 (2) // invalid input parameter
-#define MCC_ERR_NOMEM	 (3) // out of shared memory for message transmission
-#define MCC_ERR_ENDPOINT (4) // invalid endpoint / endpoint doesn't exist
+#define MCC_SUCCESS	      (0) /* function returned successfully */
+#define MCC_ERR_TIMEOUT	  (1) /* blocking function timed out before completing */
+#define MCC_ERR_INVAL     (2) /* invalid input parameter */
+#define MCC_ERR_NOMEM     (3) /* out of shared memory for message transmission */
+#define MCC_ERR_ENDPOINT  (4) /* invalid endpoint / endpoint doesn't exist */
 
 /*
  * OS Selection
  */
-#define MCC_LINUX        (1) // Linux OS used
-#define MCC_MQX          (2) // MQX RTOS used
+#define MCC_LINUX         (1) /* Linux OS used */
+#define MCC_MQX           (2) /* MQX RTOS used */
 
 MCC_RECEIVE_LIST * mcc_get_endpoint_list(MCC_ENDPOINT endpoint);
 MCC_RECEIVE_BUFFER * mcc_dequeue_buffer(MCC_RECEIVE_LIST *list);
