@@ -86,6 +86,29 @@ int mcc_create_endpoint(MCC_ENDPOINT *endpoint, MCC_PORT port)
 }
 
 /*!
+ * \brief This function destrois an endpoint.
+ *
+ * Destroy an endpoint on the local node.  
+ *
+ * \param[in] endpoint Pointer to the endpoint structure.
+ */
+int mcc_destroy_endpoint(MCC_ENDPOINT *endpoint)
+{
+    int return_value = MCC_SUCCESS;
+    
+    /* Semaphore-protected section start */
+    mcc_get_semaphore();
+    
+    /* Add new endpoint data into the book-keeping structure */
+    return_value = mcc_remove_endpoint(endpoint);
+    
+    /* Semaphore-protected section end */
+    mcc_release_semaphore();
+    
+    return return_value;
+}
+
+/*!
  * \brief This function sends a message.
  *
  * The message is copied into the MCC buffer and the other core is signaled.  
