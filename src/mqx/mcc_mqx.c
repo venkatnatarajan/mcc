@@ -56,7 +56,11 @@ int mcc_init_semaphore(unsigned int sem_num)
     /* Create a core mutex */
     cm_ptr = _core_mutex_create(MCC_CORE_NUMBER, sem_num, MQX_TASK_QUEUE_FIFO);
     //TODO: MCC_CORE_NUMBER???, maybe pass it via param
-    //TODO: return values 
+
+    if(NULL == cm_ptr)
+        return MCC_ERR_SEMAPHORE;
+    else
+        return MCC_SUCCESS;
 }
 
 /*!
@@ -69,7 +73,10 @@ int mcc_init_semaphore(unsigned int sem_num)
 int mcc_deinit_semaphore(unsigned int sem_num)
 {
     /* Destroy the core mutex */
-    _core_mutex_destroy(cm_ptr);
+    if(MQX_OK == _core_mutex_destroy(cm_ptr))
+        return MCC_SUCCESS;
+    else
+        return MCC_ERR_SEMAPHORE;
 }
 
 /*!
@@ -80,7 +87,10 @@ int mcc_deinit_semaphore(unsigned int sem_num)
  */
 int mcc_get_semaphore(void)
 {
-    _core_mutex_lock(cm_ptr);
+    if(MQX_OK == _core_mutex_lock(cm_ptr))
+        return MCC_SUCCESS;
+    else
+        return MCC_ERR_SEMAPHORE;
 }
 
 /*!
@@ -91,7 +101,10 @@ int mcc_get_semaphore(void)
  */
 int mcc_release_semaphore(void)
 {
-    _core_mutex_unlock(cm_ptr);
+    if(MQX_OK == _core_mutex_unlock(cm_ptr))
+        return MCC_SUCCESS;
+    else
+        return MCC_ERR_SEMAPHORE;
 }
 
 /*!

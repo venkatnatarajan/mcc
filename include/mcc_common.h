@@ -90,6 +90,7 @@ struct mcc_bookeeping_struct * bookeeping_data;
 #define MCC_ERR_INVAL     (2) /* invalid input parameter */
 #define MCC_ERR_NOMEM     (3) /* out of shared memory for message transmission */
 #define MCC_ERR_ENDPOINT  (4) /* invalid endpoint / endpoint doesn't exist */
+#define MCC_ERR_SEMAPHORE (5) /* semaphore handling error */ 
 
 /*
  * OS Selection
