@@ -1,5 +1,7 @@
-#include "mcc_common.h"
 #include "mcc_config.h"
+#include "mcc_common.h"
+
+MCC_BOOKEEPING_STRUCT * bookeeping_data;
 
 /*!
  * \brief This function registers an endpoint.
@@ -18,6 +20,7 @@ int mcc_register_endpoint(MCC_ENDPOINT endpoint)
 			bookeeping_data->endpoint_table[i].endpoint.core = endpoint.core;
 			bookeeping_data->endpoint_table[i].endpoint.node = endpoint.node;
 			bookeeping_data->endpoint_table[i].endpoint.port = endpoint.port;
+			bookeeping_data->endpoint_table[i].list = &bookeeping_data->r_lists[i];
 			return MCC_SUCCESS;
 		}
 	}
@@ -44,7 +47,7 @@ int mcc_remove_endpoint(MCC_ENDPOINT endpoint)
 			// clear the queue
 			MCC_RECEIVE_BUFFER * buffer = mcc_dequeue_buffer(bookeeping_data->endpoint_table[i].list);
 			while(buffer) {
-				mcc_queue_buffer(bookeeping_data->free_list, buffer);
+				mcc_queue_buffer(&bookeeping_data->free_list, buffer);
 				buffer = mcc_dequeue_buffer(bookeeping_data->endpoint_table[i].list);
 			}
 

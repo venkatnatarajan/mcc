@@ -1,3 +1,5 @@
+#include "mcc_vf600.h"
+
 /* This field contains CPU-to-CPU interrupt vector numbers for all device cores */
 static const unsigned int mcc_cpu_to_cpu_vectors[] = { 48, 16 };
 

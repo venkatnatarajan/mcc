@@ -3,6 +3,7 @@
 
 typedef unsigned int MCC_BOOLEAN;
 typedef unsigned int MCC_MEM_SIZE;
+#define NULL ((void*)0)
 
 /*
  * End points
@@ -51,7 +52,7 @@ typedef struct endpoint_map_struct {
 /*
  * Share Memory data - Bookkeeping data and buffers.
  */
- 
+
 typedef struct mcc_bookeeping_struct {
 
 	/* Flag that indicates if this struct has been already initialized */
@@ -59,7 +60,7 @@ typedef struct mcc_bookeeping_struct {
 
 	/* List of buffers for each endpoint */
 	MCC_RECEIVE_LIST r_lists[MCC_ATTR_MAX_RECEIVE_ENDPOINTS];
-	
+
 	/* List of free buffers */
 	MCC_RECEIVE_LIST free_list;
 
@@ -72,10 +73,11 @@ typedef struct mcc_bookeeping_struct {
 
 	/* Receive buffers */
 	MCC_RECEIVE_BUFFER r_buffers[MCC_ATTR_NUM_RECEIVE_BUFFERS];
-	
+
 } MCC_BOOKEEPING_STRUCT;
 
-struct mcc_bookeeping_struct * bookeeping_data;
+//struct mcc_bookeeping_struct * bookeeping_data;
+extern MCC_BOOKEEPING_STRUCT * bookeeping_data;
 
 /*
  * Common Macros
@@ -90,7 +92,7 @@ struct mcc_bookeeping_struct * bookeeping_data;
 #define MCC_ERR_INVAL     (2) /* invalid input parameter */
 #define MCC_ERR_NOMEM     (3) /* out of shared memory for message transmission */
 #define MCC_ERR_ENDPOINT  (4) /* invalid endpoint / endpoint doesn't exist */
-#define MCC_ERR_SEMAPHORE (5) /* semaphore handling error */ 
+#define MCC_ERR_SEMAPHORE (5) /* semaphore handling error */
 
 /*
  * OS Selection
