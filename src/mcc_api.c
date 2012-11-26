@@ -18,13 +18,18 @@
 int mcc_initialize(MCC_NODE node)
 {
     int i = 0;
+    int return_value = MCC_SUCCESS;
 
     /* Initialize synchronization module */
-    mcc_init_semaphore(MCC_SEMAPHORE_NUMBER);
+    return_value = mcc_init_semaphore(MCC_SEMAPHORE_NUMBER);
+    if(return_value != MCC_SUCCESS)
+    	return return_value;
 
     /* Register CPU-to-CPU interrupt for inter-core signalling */
     //mcc_register_cpu_to_cpu_isr(MCC_CORE0_CPU_TO_CPU_VECTOR);
-    mcc_register_cpu_to_cpu_isr();
+    return_value = mcc_register_cpu_to_cpu_isr();
+    if(return_value != MCC_SUCCESS)
+    	return return_value;
 
     /* Initialize the bookeeping structure */
     if(bookeeping_data->init_flag == 0) {
@@ -42,6 +47,7 @@ int mcc_initialize(MCC_NODE node)
         }
         bookeeping_data->r_buffers[MCC_ATTR_NUM_RECEIVE_BUFFERS-1].next = &bookeeping_data->r_buffers[0];
     }
+    return return_value;
 }
 
 /*!
@@ -53,10 +59,12 @@ int mcc_initialize(MCC_NODE node)
  */
 int mcc_destroy(MCC_NODE node)
 {
-    int i = 0;
+    int i = 0, return_value;
 
     /* Semaphore-protected section start */
-    mcc_get_semaphore();
+    return_value = mcc_get_semaphore();
+    if(return_value != MCC_SUCCESS)
+    	return return_value;
 
     /* All endpoints of the particular node have to be removed from the endpoint table */
     for(i = 0; i < MCC_ATTR_MAX_RECEIVE_ENDPOINTS; i++) {
@@ -67,12 +75,16 @@ int mcc_destroy(MCC_NODE node)
     }
 
     /* Semaphore-protected section end */
-    mcc_release_semaphore();
+    return_value = mcc_release_semaphore();
+    if(return_value != MCC_SUCCESS)
+    	return return_value;
 
     /* Deinitialize synchronization module */
     mcc_deinit_semaphore(MCC_SEMAPHORE_NUMBER);
 
-    // TODO: Clear signal queue, Unregister the CPU-to-CPU interrupt????
+    //TODO: Clear signal queue, Unregister the CPU-to-CPU interrupt????
+
+    return return_value;
 }
 
 /*!
@@ -93,13 +105,19 @@ int mcc_create_endpoint(MCC_ENDPOINT *endpoint, MCC_PORT port)
     //endpoint->port = (MCC_PORT)port;
 
     /* Semaphore-protected section start */
-    mcc_get_semaphore();
+    return_value = mcc_get_semaphore();
+    if(return_value != MCC_SUCCESS)
+     	return return_value;
 
     /* Add new endpoint data into the book-keeping structure */
     return_value = mcc_register_endpoint(*endpoint);
+    if(return_value != MCC_SUCCESS)
+    	return return_value;
 
     /* Semaphore-protected section end */
-    mcc_release_semaphore();
+    return_value =  mcc_release_semaphore();
+    if(return_value != MCC_SUCCESS)
+     	return return_value;
 
     return return_value;
 }
@@ -116,13 +134,19 @@ int mcc_destroy_endpoint(MCC_ENDPOINT *endpoint)
     int return_value = MCC_SUCCESS;
 
     /* Semaphore-protected section start */
-    mcc_get_semaphore();
+    return_value = mcc_get_semaphore();
+	if(return_value != MCC_SUCCESS)
+		return return_value;
 
     /* Add new endpoint data into the book-keeping structure */
     return_value = mcc_remove_endpoint(*endpoint);
+    if(return_value != MCC_SUCCESS)
+    	return return_value;
 
     /* Semaphore-protected section end */
-    mcc_release_semaphore();
+    return_value =  mcc_release_semaphore();
+    if(return_value != MCC_SUCCESS)
+     	return return_value;
 
     return return_value;
 }
@@ -139,11 +163,14 @@ int mcc_destroy_endpoint(MCC_ENDPOINT *endpoint)
  */
 int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned int timeout_us)
 {
+	int return_value;
     MCC_RECEIVE_LIST *list;
     MCC_RECEIVE_BUFFER * buf;
 
     /* Semaphore-protected section start */
-    mcc_get_semaphore();
+    return_value = mcc_get_semaphore();
+    if(return_value != MCC_SUCCESS)
+     	return return_value;
 
     /* Dequeue the buffer from the free list */
     buf = mcc_dequeue_buffer(&bookeeping_data->free_list);
@@ -155,13 +182,18 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
     mcc_queue_buffer(list, buf);
 
     /* Semaphore-protected section end */
-    mcc_release_semaphore();
+    return_value = mcc_release_semaphore();
+    if(return_value != MCC_SUCCESS)
+     	return return_value;
 
     /* Copy the message into the MCC receive buffer */
     mcc_memcpy(msg, (void*)buf->data, (unsigned int)msg_size);
 
+    //TODO identify the core in the parameter of this function
     /* Signal the other core by generating the CPU-to-CPU interrupt */
-    mcc_generate_cpu_to_cpu_interrupt(); //TODO identify the core in the parameter of this function
+    return_value = mcc_generate_cpu_to_cpu_interrupt();
+
+    return return_value;
 }
 
 /*!
@@ -181,15 +213,20 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
 {
     MCC_RECEIVE_LIST *list;
     MCC_RECEIVE_BUFFER * buf;
+    int return_value;
 
     /* Semaphore-protected section start */
-    mcc_get_semaphore();
+    return_value = mcc_get_semaphore();
+	if(return_value != MCC_SUCCESS)
+		return return_value;
 
     /* Get list of buffers kept by the particular endpoint */
     list = mcc_get_endpoint_list(*endpoint);
 
     /* Semaphore-protected section end */
-    mcc_release_semaphore();
+    return_value = mcc_release_semaphore();
+    if(return_value != MCC_SUCCESS)
+     	return return_value;
 
     if(list->head != (MCC_RECEIVE_BUFFER*)0) {
         /* Copy the message from the MCC receive buffer into the user-app. buffer */
@@ -198,7 +235,9 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
     }
 
     /* Semaphore-protected section start */
-    mcc_get_semaphore();
+    return_value = mcc_get_semaphore();
+	if(return_value != MCC_SUCCESS)
+		return return_value;
 
     /* Dequeue the buffer from the endpoint list */
     buf = mcc_dequeue_buffer(list);
@@ -207,9 +246,13 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
     mcc_queue_buffer(&bookeeping_data->free_list, buf);
 
     /* Semaphore-protected section end */
-    mcc_release_semaphore();
+    return_value = mcc_release_semaphore();
+    if(return_value != MCC_SUCCESS)
+     	return return_value;
 
     //TODO: implement timeout
+
+    return return_value;
 }
 
 /*!
@@ -228,15 +271,20 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
 int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_size, unsigned int timeout_us)
 {
     MCC_RECEIVE_LIST *list;
+    int return_value;
 
     /* Semaphore-protected section start */
-    mcc_get_semaphore();
+    return_value = mcc_get_semaphore();
+	if(return_value != MCC_SUCCESS)
+		return return_value;
 
     /* Get list of buffers kept by the particular endpoint */
     list = mcc_get_endpoint_list(*endpoint);
 
     /* Semaphore-protected section end */
-    mcc_release_semaphore();
+    return_value = mcc_release_semaphore();
+    if(return_value != MCC_SUCCESS)
+     	return return_value;
 
     if(list->head != (MCC_RECEIVE_BUFFER*)0) {
         /* Get the message pointer from the head of the receive buffer list */
@@ -245,6 +293,8 @@ int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_
     }
 
     //TODO: implement timeout
+
+    return return_value;
 }
 
 /*!
@@ -261,9 +311,12 @@ int mcc_msgs_available(MCC_ENDPOINT *endpoint, unsigned int *num_msgs)
     unsigned int count = 0;
     MCC_RECEIVE_LIST *list;
     MCC_RECEIVE_BUFFER * buf;
+    int return_value;
 
     /* Semaphore-protected section start */
-    mcc_get_semaphore();
+    return_value = mcc_get_semaphore();
+	if(return_value != MCC_SUCCESS)
+		return return_value;
 
     /* Get list of buffers kept by the particular endpoint */
     list = mcc_get_endpoint_list(*endpoint);
@@ -276,7 +329,11 @@ int mcc_msgs_available(MCC_ENDPOINT *endpoint, unsigned int *num_msgs)
     *num_msgs = count;
 
     /* Semaphore-protected section end */
-    mcc_release_semaphore();
+    return_value = mcc_release_semaphore();
+    if(return_value != MCC_SUCCESS)
+     	return return_value;
+
+    return return_value;
 }
 
 /*!
@@ -293,9 +350,12 @@ int mcc_free_buffer(MCC_ENDPOINT *endpoint, void *buffer)
 {
     MCC_RECEIVE_LIST *list;
     MCC_RECEIVE_BUFFER *buf, *buf_tmp;
+    int return_value;
 
     /* Semaphore-protected section start */
-    mcc_get_semaphore();
+    return_value = mcc_get_semaphore();
+	if(return_value != MCC_SUCCESS)
+		return return_value;
 
     /* Get list of buffers kept by the particular endpoint */
     list = mcc_get_endpoint_list(*endpoint);
@@ -317,5 +377,9 @@ int mcc_free_buffer(MCC_ENDPOINT *endpoint, void *buffer)
     mcc_queue_buffer(&bookeeping_data->free_list, buf);
 
     /* Semaphore-protected section end */
-    mcc_release_semaphore();
+    return_value = mcc_release_semaphore();
+    if(return_value != MCC_SUCCESS)
+     	return return_value;
+
+    return return_value;
 }

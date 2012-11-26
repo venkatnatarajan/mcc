@@ -3,7 +3,7 @@
 
 typedef unsigned int MCC_BOOLEAN;
 typedef unsigned int MCC_MEM_SIZE;
-#define NULL ((void*)0)
+#define null ((void*)0)
 
 /*
  * End points
@@ -87,12 +87,14 @@ extern MCC_BOOKEEPING_STRUCT * bookeeping_data;
 /*
  * Errors
  */
-#define MCC_SUCCESS	      (0) /* function returned successfully */
-#define MCC_ERR_TIMEOUT	  (1) /* blocking function timed out before completing */
-#define MCC_ERR_INVAL     (2) /* invalid input parameter */
-#define MCC_ERR_NOMEM     (3) /* out of shared memory for message transmission */
-#define MCC_ERR_ENDPOINT  (4) /* invalid endpoint / endpoint doesn't exist */
-#define MCC_ERR_SEMAPHORE (5) /* semaphore handling error */
+#define MCC_SUCCESS	        (0) /* function returned successfully */
+#define MCC_ERR_TIMEOUT	    (1) /* blocking function timed out before completing */
+#define MCC_ERR_INVAL      (2) /* invalid input parameter */
+#define MCC_ERR_NOMEM      (3) /* out of shared memory for message transmission */
+#define MCC_ERR_ENDPOINT   (4) /* invalid endpoint / endpoint doesn't exist */
+#define MCC_ERR_SEMAPHORE  (5) /* semaphore handling error */
+#define MCC_ERR_DEV		    (6) /* Device Open Error*/
+#define MCC_ERR_INT			(7) /* Interrupt Error*/
 
 /*
  * OS Selection

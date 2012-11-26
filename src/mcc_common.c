@@ -73,7 +73,7 @@ MCC_RECEIVE_BUFFER * mcc_dequeue_buffer(MCC_RECEIVE_LIST *list)
 	if(next_buf) {
 		list->head = next_buf->next;
 		if(list->tail == next_buf)
-			list->tail = NULL;
+			list->tail = null;
 	}
 
 	return next_buf;
@@ -94,7 +94,7 @@ void mcc_queue_buffer(MCC_RECEIVE_LIST *list, MCC_RECEIVE_BUFFER * r_buffer)
 		last_buf->next = r_buffer;
 	else
 		list->head = r_buffer;
-	r_buffer->next = NULL;
+	r_buffer->next = null;
 	list->tail = r_buffer;
 }
 
@@ -104,7 +104,7 @@ void mcc_queue_buffer(MCC_RECEIVE_LIST *list, MCC_RECEIVE_BUFFER * r_buffer)
  * Returns the MCC_RECEIVE_LIST respective to the endpoint structure provided.
  *
  * \param[in] Pointer to the MCC_ENDPOINT structure.
- * \param[Out] MCC_RECEIVE_LIST / NULL.
+ * \param[Out] MCC_RECEIVE_LIST / null.
  */
 MCC_RECEIVE_LIST * mcc_get_endpoint_list(MCC_ENDPOINT endpoint)
 {
@@ -116,7 +116,7 @@ MCC_RECEIVE_LIST * mcc_get_endpoint_list(MCC_ENDPOINT endpoint)
 			(bookeeping_data->endpoint_table[i].endpoint.port == endpoint.port))
 			return bookeeping_data->endpoint_table[i].list;
 	}
-	return NULL;
+	return null;
 }
 
 
