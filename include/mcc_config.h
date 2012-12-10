@@ -11,7 +11,7 @@
 #define MCC_ATTR_NUM_RECEIVE_BUFFERS 10
 #define MCC_ATTR_BUFFER_SIZE_IN_KB 1
 
-/* maximum number of receive endpoints per core */
+/* maximum number of receive endpoints */
 #define MCC_ATTR_MAX_RECEIVE_ENDPOINTS 5
 
 /* size of the signal queue */
@@ -25,11 +25,5 @@
 
 /* semaphore number */
 #define MCC_SEMAPHORE_NUMBER  1 //????, see core_mutex MQX example
-
-/* core0 CPU-to-CPU interrupt vector number */
-#define MCC_CORE0_CPU_TO_CPU_VECTOR   48
-
-/* core1 CPU-to-CPU interrupt vector number */
-#define MCC_CORE1_CPU_TO_CPU_VECTOR   16
 
 #endif /* __MCC_CONFIG__ */

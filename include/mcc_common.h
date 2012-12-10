@@ -12,48 +12,52 @@ typedef unsigned int MCC_CORE;
 typedef unsigned int MCC_NODE;
 typedef unsigned int MCC_PORT;
 
-typedef struct mcc_endpoint {
+struct mcc_endpoint {
 	MCC_CORE core;
 	MCC_NODE node;
 	MCC_PORT port;
-} MCC_ENDPOINT;
+}__attribute__((packed));
+typedef struct mcc_endpoint MCC_ENDPOINT;
 
 /*
  * receive buffers and list structures
  */
-typedef struct mcc_receive_buffer {
+struct mcc_receive_buffer {
 	struct mcc_receive_buffer *next;
 	char data [MCC_ATTR_BUFFER_SIZE_IN_KB * 1024];
-} MCC_RECEIVE_BUFFER;
+}__attribute__((packed));
+typedef struct mcc_receive_buffer MCC_RECEIVE_BUFFER;
 
-typedef struct mcc_receive_list {
+struct mcc_receive_list {
 	MCC_RECEIVE_BUFFER * head;
 	MCC_RECEIVE_BUFFER * tail;
-} MCC_RECEIVE_LIST;
-
+}__attribute__((packed));
+typedef struct mcc_receive_list MCC_RECEIVE_LIST;
 
 /*
  * Signals and signal queues
  */
-typedef enum mcc_signal_type {BUFFER_QUEUED, BUFFERED_FREED} MCC_SIGNAL_TYPE;
-typedef struct mcc_signal {
+typedef enum mcc_signal_type {BUFFER_QUEUED, BUFFER_FREED} MCC_SIGNAL_TYPE;
+struct mcc_signal {
 	MCC_SIGNAL_TYPE type;
 	MCC_ENDPOINT    destination;
-} MCC_SIGNAL;
+}__attribute__((packed));
+typedef struct mcc_signal MCC_SIGNAL;
 
 /*
  * Endpoint registration table
  */
-typedef struct endpoint_map_struct {
+struct endpoint_map_struct {
 	MCC_ENDPOINT      endpoint;
 	MCC_RECEIVE_LIST *list;
-} MCC_ENDPOINT_MAP_ITEM;
+}__attribute__((packed));
+typedef struct endpoint_map_struct MCC_ENDPOINT_MAP_ITEM;
 
 /*
  * Share Memory data - Bookkeeping data and buffers.
  */
 
-typedef struct mcc_bookeeping_struct {
+struct mcc_bookeeping_struct {
 
 	/* Flag that indicates if this struct has been already initialized */
 	MCC_BOOLEAN init_flag;
@@ -73,8 +77,8 @@ typedef struct mcc_bookeeping_struct {
 
 	/* Receive buffers */
 	MCC_RECEIVE_BUFFER r_buffers[MCC_ATTR_NUM_RECEIVE_BUFFERS];
-
-} MCC_BOOKEEPING_STRUCT;
+}__attribute__((packed));
+typedef struct mcc_bookeeping_struct MCC_BOOKEEPING_STRUCT;
 
 //struct mcc_bookeeping_struct * bookeeping_data;
 extern MCC_BOOKEEPING_STRUCT * bookeeping_data;
@@ -87,14 +91,14 @@ extern MCC_BOOKEEPING_STRUCT * bookeeping_data;
 /*
  * Errors
  */
-#define MCC_SUCCESS	        (0) /* function returned successfully */
-#define MCC_ERR_TIMEOUT	    (1) /* blocking function timed out before completing */
-#define MCC_ERR_INVAL      (2) /* invalid input parameter */
-#define MCC_ERR_NOMEM      (3) /* out of shared memory for message transmission */
-#define MCC_ERR_ENDPOINT   (4) /* invalid endpoint / endpoint doesn't exist */
-#define MCC_ERR_SEMAPHORE  (5) /* semaphore handling error */
-#define MCC_ERR_DEV		    (6) /* Device Open Error*/
-#define MCC_ERR_INT			(7) /* Interrupt Error*/
+#define MCC_SUCCESS         (0) /* function returned successfully */
+#define MCC_ERR_TIMEOUT     (1) /* blocking function timed out before completing */
+#define MCC_ERR_INVAL       (2) /* invalid input parameter */
+#define MCC_ERR_NOMEM       (3) /* out of shared memory for message transmission */
+#define MCC_ERR_ENDPOINT    (4) /* invalid endpoint / endpoint doesn't exist */
+#define MCC_ERR_SEMAPHORE   (5) /* semaphore handling error */
+#define MCC_ERR_DEV         (6) /* Device Open Error*/
+#define MCC_ERR_INT         (7) /* Interrupt Error*/
 
 /*
  * OS Selection
