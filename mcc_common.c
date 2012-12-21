@@ -2,8 +2,8 @@
 #include "mcc_common.h"
 
 #if (MCC_OS_USED == MCC_LINUX)
-#include "linux/module/mcc_linux.h"
-#include "linux/module/mcc_shm_linux.h"
+#include "mcc_linux.h"
+#include "mcc_shm_linux.h"
 #include <mach/hardware.h>
 #include <linux/kernel.h>
 #endif

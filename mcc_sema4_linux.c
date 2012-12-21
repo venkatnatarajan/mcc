@@ -7,8 +7,8 @@
 
 // common to MQX and Linux
 // TODO the order of these should not matter
-#include "../../mcc_config.h"
-#include "../../mcc_common.h"
+#include "mcc_config.h"
+#include "mcc_common.h"
 
 // linux only
 #include "mcc_linux.h"
