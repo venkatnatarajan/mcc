@@ -1,0 +1,4 @@
+export KDIR=../../../../linux-3.0
+export ARCH=arm
+export CROSS_COMPILE=armv7l-timesys-linux-gnueabi-
+export PATH=`readlink -f ../../../../`/toolchain/bin:$PATH
