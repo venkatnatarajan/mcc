@@ -1,8 +1,8 @@
 #ifndef libmcc_H_INCLUDED
 #define libmcc_H_INCLUDED
 
-#include "../../../mcc_config.h"
-#include "../../../mcc_common.h"
+#include <linux/mcc_config.h>
+#include <linux/mcc_common.h>
 
 int mcc_initialize(MCC_NODE);
 int mcc_destroy(MCC_NODE);
