@@ -9,7 +9,7 @@ build/libmcc.a: build/libmcc.o
 	$(AR) rcs $@ $<
 
 build/libmcc.so: build/libmcc.o
-	$(CC) -shared -Wl -o $@  $<
+	$(CC) -shared -o $@  $<
 
 install:
 	mkdir -p $(DESTDIR)/usr/{lib,include}
