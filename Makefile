@@ -3,7 +3,7 @@ all: build/libmcc.a build/libmcc.so
 
 build/libmcc.o: src/libmcc.c
 	mkdir -p build/
-	$(CC) -c -fPIC $< -o $@
+	$(CC) -c -fPIC $< -o $@ $(CFLAGS)
 
 build/libmcc.a: build/libmcc.o
 	$(AR) rcs $@ $<

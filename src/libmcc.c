@@ -2,7 +2,7 @@
 #include <sys/ioctl.h>
 #include <errno.h>
 
-#include "../../module/mcc_linux.h"
+#include <linux/mcc_linux.h>
 
 #include <stdio.h>
 #include <unistd.h>
