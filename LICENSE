@@ -25,13 +25,3 @@
   * WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
   * POSSIBILITY OF SUCH DAMAGE.
   */
-
-#ifndef libmcc_H_INCLUDED
-#define libmcc_H_INCLUDED
-
-#include <linux/mcc_config.h>
-#include <linux/mcc_common.h>
-
-#include <mcc_api.h>
-
-#endif /* libmcc_H_INCLUDED */
