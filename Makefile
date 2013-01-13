@@ -9,9 +9,10 @@ all:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
 
 install: all
-	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules_install
+	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules_install INSTALL_MOD_PATH=$(DESTDIR)
 	@echo Copying mcc headers to toolchain
-	-cp -f {mcc_linux.h,mcc_common.h,mcc_config.h} $(INSTALL_HDR_PATH)/linux/
+	mkdir -p $(DESTDIR)/usr/include/linux
+	cp -f {mcc_linux.h,mcc_common.h,mcc_config.h} $(DESTDIR)/usr/include/linux/
 
 
 clean:
