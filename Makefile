@@ -1,3 +1,4 @@
+CFLAGS+=-Iinclude/
 all: build/libmcc.a build/libmcc.so
 
 build/libmcc.o: src/libmcc.c
@@ -13,7 +14,7 @@ build/libmcc.so: build/libmcc.o
 install:
 	mkdir -p $(DESTDIR)/usr/{lib,include}
 	cp -f build/libmcc.{so,a} $(DESTDIR)/usr/lib
-	cp -f src/libmcc.h $(DESTDIR)/usr/include
+	cp -f include/*.h $(DESTDIR)/usr/include
 
 clean:
 	rm -rf build
