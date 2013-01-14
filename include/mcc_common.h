@@ -12,55 +12,93 @@ typedef unsigned int MCC_CORE;
 typedef unsigned int MCC_NODE;
 typedef unsigned int MCC_PORT;
 
+#if __IAR_SYSTEMS_ICC__
+__packed
+#endif
 struct mcc_endpoint {
 	MCC_CORE core;
 	MCC_NODE node;
 	MCC_PORT port;
+#if __IAR_SYSTEMS_ICC__
+};
+#else
 }__attribute__((packed));
+#endif
 typedef struct mcc_endpoint MCC_ENDPOINT;
 
 /*
  * receive buffers and list structures
  */
+#if __IAR_SYSTEMS_ICC__
+__packed
+#endif
 struct mcc_receive_buffer {
 	struct mcc_receive_buffer *next;
+	int data_len;
 	char data [MCC_ATTR_BUFFER_SIZE_IN_KB * 1024];
+#if __IAR_SYSTEMS_ICC__
+};
+#else
 }__attribute__((packed));
+#endif
 typedef struct mcc_receive_buffer MCC_RECEIVE_BUFFER;
 
+#if __IAR_SYSTEMS_ICC__
+__packed
+#endif
 struct mcc_receive_list {
 	MCC_RECEIVE_BUFFER * head;
 	MCC_RECEIVE_BUFFER * tail;
+#if __IAR_SYSTEMS_ICC__
+};
+#else
 }__attribute__((packed));
+#endif
 typedef struct mcc_receive_list MCC_RECEIVE_LIST;
 
 /*
  * Signals and signal queues
  */
 typedef enum mcc_signal_type {BUFFER_QUEUED, BUFFER_FREED} MCC_SIGNAL_TYPE;
+#if __IAR_SYSTEMS_ICC__
+__packed
+#endif
 struct mcc_signal {
 	MCC_SIGNAL_TYPE type;
 	MCC_ENDPOINT    destination;
+#if __IAR_SYSTEMS_ICC__
+};
+#else
 }__attribute__((packed));
+#endif
 typedef struct mcc_signal MCC_SIGNAL;
 
 /*
  * Endpoint registration table
  */
+#if __IAR_SYSTEMS_ICC__
+__packed
+#endif
 struct endpoint_map_struct {
 	MCC_ENDPOINT      endpoint;
 	MCC_RECEIVE_LIST *list;
+#if __IAR_SYSTEMS_ICC__
+};
+#else
 }__attribute__((packed));
+#endif
 typedef struct endpoint_map_struct MCC_ENDPOINT_MAP_ITEM;
 
 /*
  * Share Memory data - Bookkeeping data and buffers.
  */
 
+#if __IAR_SYSTEMS_ICC__
+__packed
+#endif
 struct mcc_bookeeping_struct {
-
-	/* Flag that indicates if this struct has been already initialized */
-	MCC_BOOLEAN init_flag;
+	/* String that indicates if this struct has been already initialized */
+	char init_string[8];
 
 	/* List of buffers for each endpoint */
 	MCC_RECEIVE_LIST r_lists[MCC_ATTR_MAX_RECEIVE_ENDPOINTS];
@@ -77,7 +115,11 @@ struct mcc_bookeeping_struct {
 
 	/* Receive buffers */
 	MCC_RECEIVE_BUFFER r_buffers[MCC_ATTR_NUM_RECEIVE_BUFFERS];
+#if __IAR_SYSTEMS_ICC__
+};
+#else
 }__attribute__((packed));
+#endif
 typedef struct mcc_bookeeping_struct MCC_BOOKEEPING_STRUCT;
 
 //struct mcc_bookeeping_struct * bookeeping_data;
@@ -111,6 +153,11 @@ MCC_RECEIVE_BUFFER * mcc_dequeue_buffer(MCC_RECEIVE_LIST *list);
 void mcc_queue_buffer(MCC_RECEIVE_LIST *list, MCC_RECEIVE_BUFFER * r_buffer);
 int mcc_remove_endpoint(MCC_ENDPOINT endpoint);
 int mcc_register_endpoint(MCC_ENDPOINT endpoint);
+int mcc_queue_signal(MCC_CORE core, MCC_SIGNAL signal);
+int mcc_dequeue_signal(MCC_CORE core, MCC_SIGNAL *signal);
+
+#define MCC_SIGNAL_QUEUE_FULL(core) (((bookeeping_data->signal_queue_tail[core] + 1) % MCC_MAX_OUTSTANDING_SIGNALS) == bookeeping_data->signal_queue_head[core])
+#define MCC_SIGNAL_QUEUE_EMPTY(core) (bookeeping_data->signal_queue_head[core] == bookeeping_data->signal_queue_tail[core])
 
 #endif /* __MCC_COMMON__ */
 
