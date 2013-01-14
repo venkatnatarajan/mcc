@@ -1,3 +1,45 @@
+/**HEADER********************************************************************
+* 
+* Copyright 2013 Freescale, Inc.
+*
+*************************************************************************** 
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions
+* are met:
+*
+* - Redistributions of source code must retain the above copyright
+*   notice, this list of conditions and the following disclaimer.
+* - Redistributions in binary form must reproduce the above copyright
+*   notice, this list of conditions and the following disclaimer in the
+*   documentation and/or other materials provided with the
+*   distribution.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+* INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+* BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;  LOSS
+* OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
+* AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+* LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY
+* WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+* POSSIBILITY OF SUCH DAMAGE.
+*
+**************************************************************************
+*
+* $FileName: mcc_api.c$
+* $Version : 3.8.1.0$
+* $Date    : Jul-3-2012$
+*
+* Comments:
+*
+*   This file contains MCC library API functions implementation
+*
+*END************************************************************************/
+
 #include <string.h>
 #include "mcc_config.h"
 #include "mcc_common.h"
@@ -30,14 +72,14 @@ int mcc_initialize(MCC_NODE node)
     //TODO move to ??? (where?)
     _lwsem_create(&lwsem_buffer_queued[MCC_CORE_NUMBER], 0);
     _lwsem_create(&lwsem_buffer_freed[MCC_CORE_NUMBER], 0);
-    _DCACHE_DISABLE(); //TODO should be in the OS-specific initialization
+    //_DCACHE_DISABLE(); //TODO should be in the OS-specific initialization
 #endif
     /* Initialize synchronization module */
     return_value = mcc_init_semaphore(MCC_SEMAPHORE_NUMBER);
     if(return_value != MCC_SUCCESS)
     	return return_value;
 
-    /* Register CPU-to-CPU interrupt for inter-core signalling */
+    /* Register CPU-to-CPU interrupt for inter-core signaling */
     //mcc_register_cpu_to_cpu_isr(MCC_CORE0_CPU_TO_CPU_VECTOR);
     return_value = mcc_register_cpu_to_cpu_isr();
     if(return_value != MCC_SUCCESS)
@@ -45,6 +87,9 @@ int mcc_initialize(MCC_NODE node)
 
     /* Initialize the bookeeping structure */
     if(strcmp(bookeeping_data->init_string, init_string) != 0) {
+
+    	/* Zero it all - no guarantee Linux or uboot didnt touch it before it was reserved */
+    	_mem_zero((pointer) bookeeping_data, (_mem_size) sizeof(struct mcc_bookeeping_struct));
 
     	/* Set init_string in case it has not been set yet by another core */
     	mcc_memcpy((void*)init_string, bookeeping_data->init_string, (unsigned int)sizeof(bookeeping_data->init_string));
@@ -67,6 +112,11 @@ int mcc_initialize(MCC_NODE node)
         	bookeeping_data->signal_queue_head[i] = 0;
             bookeeping_data->signal_queue_tail[i] = 0;
         }
+
+        /* Mark all endpoint ports as free */
+    	for(i=0; i<MCC_ATTR_MAX_RECEIVE_ENDPOINTS; i++) {
+    		bookeeping_data->endpoint_table[i].endpoint.port = MCC_RESERVED_PORT_NUMBER;
+    	}
     }
     return return_value;
 }
@@ -148,7 +198,7 @@ int mcc_create_endpoint(MCC_ENDPOINT *endpoint, MCC_PORT port)
 }
 
 /*!
- * \brief This function destrois an endpoint.
+ * \brief This function destroys an endpoint.
  *
  * Destroy an endpoint on the local node.
  *
@@ -184,7 +234,7 @@ int mcc_destroy_endpoint(MCC_ENDPOINT *endpoint)
  * \param[in] endpoint Pointer to the endpoint structure.
  * \param[in] msg Pointer to the message to be sent.
  * \param[in] msg_size Size of the message to be sent in bytes.
- * \param[in] timeout_us Timeout in microseconds. 0 = non-blocking call, 0xffff = blocking call .
+ * \param[in] timeout_us Timeout in microseconds. 0 = non-blocking call, 0xffffffff = blocking call .
  */
 int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned int timeout_us)
 {
@@ -220,22 +270,23 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
     /* Dequeue the buffer from the free list */
     buf = mcc_dequeue_buffer(&bookeeping_data->free_list);
 
-    while(buf == null) {
-        /* Non-blocking call */
+    if(buf == null) {
+    	mcc_release_semaphore();
+
+    	/* Non-blocking call */
         if(timeout_us == 0) {
-        	mcc_release_semaphore();
+        	return MCC_ERR_NOMEM;
+        }
+        /* Blocking call - wait forever */
+        else if(timeout_us == 0xFFFFFFFF) {
 #if (MCC_OS_USED == MCC_MQX)
         	_lwsem_wait(&lwsem_buffer_freed[endpoint->core]);
 #endif
         	mcc_get_semaphore();
         	buf = mcc_dequeue_buffer(&bookeeping_data->free_list);
         }
-        /* Blocking call - wait forever TBD */
-        else if(timeout_us == 0xFFFF) {
-        }
         /* timeout_us > 0 */
         else {
-        	mcc_release_semaphore();
 #if (MCC_OS_USED == MCC_MQX)
         	time_us_tmp = mcc_time_get_microseconds();
         	time_us_tmp += timeout_us;
@@ -275,16 +326,11 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
     /* Write the signal type into the signal queue of the particular core */
     affiliated_signal.type = BUFFER_QUEUED;
     affiliated_signal.destination = *endpoint;
-    bookeeping_data->signals_received[endpoint->core][bookeeping_data->signal_queue_tail[endpoint->core]] = affiliated_signal;
-    if (MCC_MAX_OUTSTANDING_SIGNALS-1 > bookeeping_data->signal_queue_tail[endpoint->core]) {
-        bookeeping_data->signal_queue_tail[endpoint->core]++;
-    }
-    else {
-   	    bookeeping_data->signal_queue_tail[endpoint->core] = 0;
-    }
+    return_value = mcc_queue_signal(endpoint->core, affiliated_signal);
 
     /* Semaphore-protected section end */
     mcc_release_semaphore();
+
     if(return_value != MCC_SUCCESS)
      	return return_value;
 
@@ -306,7 +352,7 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
  * \param[in] buffer Pointer to the user-app. buffer data will be copied into.
  * \param[in] buffer_size Size of the user-app. buffer data will be copied into.
  * \param[out] recv_size Pointer to the number of received bytes.
- * \param[in] timeout_us Timeout in microseconds. 0 = non-blocking call, 0xffff = blocking call .
+ * \param[in] timeout_us Timeout in microseconds. 0 = non-blocking call, 0xffffffff = blocking call .
  */
 int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size, MCC_MEM_SIZE *recv_size, unsigned int timeout_us)
 {
@@ -339,28 +385,16 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
     	return MCC_ERR_ENDPOINT;
     }
 
-    while(list->head == (MCC_RECEIVE_BUFFER*)0) {
+    if(list->head == (MCC_RECEIVE_BUFFER*)0) {
     	/* Non-blocking call */
     	if(timeout_us == 0) {
+    		return MCC_ERR_TIMEOUT;
+    	}
+    	/* Blocking call */
+    	else if(timeout_us == 0xFFFFFFFF) {
 #if (MCC_OS_USED == MCC_MQX)
     		_lwsem_wait(&lwsem_buffer_queued[endpoint->core]);
 #endif
-        	/* Semaphore-protected section start */
-            return_value = mcc_get_semaphore();
-        	if(return_value != MCC_SUCCESS)
-        		return return_value;
-
-            /* Get list of buffers kept by the particular endpoint */
-            list = mcc_get_endpoint_list(*endpoint);
-
-            /* Semaphore-protected section end */
-            return_value = mcc_release_semaphore();
-            if(return_value != MCC_SUCCESS)
-             	return return_value;
-    	}
-    	/* Blocking call TODO */
-    	else if(timeout_us == 0xFFFF) {
-
     	}
     	/* timeout_us > 0 */
     	else {
@@ -372,24 +406,25 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
         	_time_to_ticks(&time, &tick_time);
         	_lwsem_wait_until(&lwsem_buffer_queued[endpoint->core], &tick_time);
 #endif
-        	/* Semaphore-protected section start */
-            return_value = mcc_get_semaphore();
-        	if(return_value != MCC_SUCCESS)
-        		return return_value;
-
-            /* Get list of buffers kept by the particular endpoint */
-            list = mcc_get_endpoint_list(*endpoint);
-
-            /* Semaphore-protected section end */
-            return_value = mcc_release_semaphore();
-            if(return_value != MCC_SUCCESS)
-             	return return_value;
-
-            if(list->head == (MCC_RECEIVE_BUFFER*)0) {
-        		/* Buffer not dequeued before the timeout */
-        		return MCC_ERR_TIMEOUT;
-        	}
     	}
+    }
+
+    /* Semaphore-protected section start */
+    return_value = mcc_get_semaphore();
+    if(return_value != MCC_SUCCESS)
+    	return return_value;
+
+    /* Get list of buffers kept by the particular endpoint */
+    list = mcc_get_endpoint_list(*endpoint);
+
+    /* Semaphore-protected section end */
+    return_value = mcc_release_semaphore();
+    if(return_value != MCC_SUCCESS)
+     	return return_value;
+
+    if(list->head == (MCC_RECEIVE_BUFFER*)0) {
+    	/* Buffer not dequeued before the timeout */
+    	return MCC_ERR_TIMEOUT;
     }
 
     /* Copy the message from the MCC receive buffer into the user-app. buffer */
@@ -412,13 +447,7 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
     affiliated_signal.destination = tmp_destination;
     for (i=0; i<MCC_NUM_CORES; i++) {
         if(i != MCC_CORE_NUMBER) {
-    	    bookeeping_data->signals_received[i][bookeeping_data->signal_queue_tail[i]] = affiliated_signal;
-            if (MCC_MAX_OUTSTANDING_SIGNALS-1 > bookeeping_data->signal_queue_tail[i]) {
-    	        bookeeping_data->signal_queue_tail[i]++;
-            }
-            else {
-        	    bookeeping_data->signal_queue_tail[i] = 0;
-            }
+            mcc_queue_signal(i, affiliated_signal);
         }
     }
     mcc_generate_cpu_to_cpu_interrupt(); //TODO ensure interrupt generation into all cores
@@ -442,7 +471,7 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
  * \param[in] endpoint Pointer to the endpoint structure.
  * \param[out] buffer_p Pointer to the MCC buffer of the shared memory where the received data is stored.
  * \param[out] recv_size Pointer to the number of received bytes.
- * \param[in] timeout_us Timeout in microseconds. 0 = non-blocking call, 0xffff = blocking call .
+ * \param[in] timeout_us Timeout in microseconds. 0 = non-blocking call, 0xffffffff = blocking call .
  */
 int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_size, unsigned int timeout_us)
 {
@@ -467,28 +496,16 @@ int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_
     if(return_value != MCC_SUCCESS)
      	return return_value;
 
-    while(list->head == (MCC_RECEIVE_BUFFER*)0) {
+    if(list->head == (MCC_RECEIVE_BUFFER*)0) {
     	/* Non-blocking call */
     	if(timeout_us == 0) {
+    		return MCC_ERR_TIMEOUT;
+    	}
+    	/* Blocking call */
+    	else if(timeout_us == 0xFFFFFFFF) {
 #if (MCC_OS_USED == MCC_MQX)
     		_lwsem_wait(&lwsem_buffer_queued[endpoint->core]);
 #endif
-        	/* Semaphore-protected section start */
-            return_value = mcc_get_semaphore();
-        	if(return_value != MCC_SUCCESS)
-        		return return_value;
-
-            /* Get list of buffers kept by the particular endpoint */
-            list = mcc_get_endpoint_list(*endpoint);
-
-            /* Semaphore-protected section end */
-            return_value = mcc_release_semaphore();
-            if(return_value != MCC_SUCCESS)
-             	return return_value;
-    	}
-    	/* Blocking call TODO */
-    	else if(timeout_us == 0xFFFF) {
-
     	}
     	/* timeout_us > 0 */
     	else {
@@ -500,25 +517,26 @@ int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_
         	_time_to_ticks(&time, &tick_time);
         	_lwsem_wait_until(&lwsem_buffer_queued[endpoint->core], &tick_time);
 #endif
-        	/* Semaphore-protected section start */
-            return_value = mcc_get_semaphore();
-        	if(return_value != MCC_SUCCESS)
-        		return return_value;
-
-            /* Get list of buffers kept by the particular endpoint */
-            list = mcc_get_endpoint_list(*endpoint);
-
-            /* Semaphore-protected section end */
-            return_value = mcc_release_semaphore();
-            if(return_value != MCC_SUCCESS)
-             	return return_value;
-
-            if(list->head == (MCC_RECEIVE_BUFFER*)0) {
-        		/* Buffer not dequeued before the timeout */
-        		return MCC_ERR_TIMEOUT;
-        	}
     	}
     }
+
+	/* Semaphore-protected section start */
+    return_value = mcc_get_semaphore();
+	if(return_value != MCC_SUCCESS)
+		return return_value;
+
+    /* Get list of buffers kept by the particular endpoint */
+    list = mcc_get_endpoint_list(*endpoint);
+
+    /* Semaphore-protected section end */
+    return_value = mcc_release_semaphore();
+    if(return_value != MCC_SUCCESS)
+     	return return_value;
+
+    if(list->head == (MCC_RECEIVE_BUFFER*)0) {
+		/* Buffer not dequeued before the timeout */
+		return MCC_ERR_TIMEOUT;
+	}
 
     /* Get the message pointer from the head of the receive buffer list */
     buffer_p = (void**)&list->head->data;
@@ -613,13 +631,7 @@ int mcc_free_buffer(MCC_ENDPOINT *endpoint, void *buffer)
     affiliated_signal.destination = tmp_destination;
     for (i=0; i<MCC_NUM_CORES; i++) {
     	if(i != MCC_CORE_NUMBER) {
-    	    bookeeping_data->signals_received[i][bookeeping_data->signal_queue_tail[i]] = affiliated_signal;
-            if (MCC_MAX_OUTSTANDING_SIGNALS-1 > bookeeping_data->signal_queue_tail[i]) {
-    	        bookeeping_data->signal_queue_tail[i]++;
-            }
-            else {
-        	    bookeeping_data->signal_queue_tail[i] = 0;
-            }
+    		mcc_queue_signal(i, affiliated_signal);
         }
     }
     mcc_generate_cpu_to_cpu_interrupt(); //TODO ensure interrupt generation into all cores

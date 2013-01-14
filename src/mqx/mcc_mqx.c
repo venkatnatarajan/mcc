@@ -1,3 +1,45 @@
+/**HEADER********************************************************************
+* 
+* Copyright 2013 Freescale, Inc.
+*
+*************************************************************************** 
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions
+* are met:
+*
+* - Redistributions of source code must retain the above copyright
+*   notice, this list of conditions and the following disclaimer.
+* - Redistributions in binary form must reproduce the above copyright
+*   notice, this list of conditions and the following disclaimer in the
+*   documentation and/or other materials provided with the
+*   distribution.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+* INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+* BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;  LOSS
+* OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
+* AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+* LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY
+* WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+* POSSIBILITY OF SUCH DAMAGE.
+*
+**************************************************************************
+*
+* $FileName: mcc_mqx.c$
+* $Version : 3.8.1.0$
+* $Date    : Jul-3-2012$
+*
+* Comments:
+*
+*   This file contains MQX-specific MCC library functions 
+*
+*END************************************************************************/
+
 #include "mcc_config.h"
 #include "mcc_common.h"
 #include "mcc_api.h"
@@ -29,15 +71,7 @@ static void mcc_cpu_to_cpu_isr(void *param)
     /* Clear the interrupt flag */
     mcc_clear_cpu_to_cpu_interrupt(MCC_CORE_NUMBER);
 
-    while(bookeeping_data->signal_queue_head[MCC_CORE_NUMBER] != bookeeping_data->signal_queue_tail[MCC_CORE_NUMBER]) {
-        serviced_signal = bookeeping_data->signals_received[MCC_CORE_NUMBER][bookeeping_data->signal_queue_head[MCC_CORE_NUMBER]];
-        if (MCC_MAX_OUTSTANDING_SIGNALS-1 > bookeeping_data->signal_queue_head[MCC_CORE_NUMBER]) {
-    	    bookeeping_data->signal_queue_head[MCC_CORE_NUMBER]++;
-        }
-        else {
-    	    bookeeping_data->signal_queue_head[MCC_CORE_NUMBER] = 0;
-        }
-    
+    while(mcc_dequeue_signal(MCC_CORE_NUMBER, &serviced_signal)) {
         if(serviced_signal.type == BUFFER_QUEUED) {
             /* Unblock receiver, in case of asynchronous communication */
             _lwsem_post(&lwsem_buffer_queued[serviced_signal.destination.core]);

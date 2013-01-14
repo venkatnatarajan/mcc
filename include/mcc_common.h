@@ -1,3 +1,45 @@
+/**HEADER********************************************************************
+*
+* Copyright 2013 Freescale, Inc.
+*
+***************************************************************************
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions
+* are met:
+*
+* - Redistributions of source code must retain the above copyright
+*   notice, this list of conditions and the following disclaimer.
+* - Redistributions in binary form must reproduce the above copyright
+*   notice, this list of conditions and the following disclaimer in the
+*   documentation and/or other materials provided with the
+*   distribution.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+* INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+* BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;  LOSS
+* OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
+* AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+* LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY
+* WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+* POSSIBILITY OF SUCH DAMAGE.
+*
+**************************************************************************
+*
+* $FileName: mcc_common.h.c$
+* $Version : 3.8.1.0$
+* $Date    : Jul-3-2012$
+*
+* Comments:
+*
+*   This is the MCC library header file
+*
+*END************************************************************************/
+
 #ifndef __MCC_COMMON__
 #define __MCC_COMMON__
 
@@ -12,14 +54,14 @@ typedef unsigned int MCC_CORE;
 typedef unsigned int MCC_NODE;
 typedef unsigned int MCC_PORT;
 
-#if __IAR_SYSTEMS_ICC__
+#if defined(__IAR_SYSTEMS_ICC__)
 __packed
 #endif
 struct mcc_endpoint {
 	MCC_CORE core;
 	MCC_NODE node;
 	MCC_PORT port;
-#if __IAR_SYSTEMS_ICC__
+#if defined(__IAR_SYSTEMS_ICC__)
 };
 #else
 }__attribute__((packed));
@@ -29,27 +71,27 @@ typedef struct mcc_endpoint MCC_ENDPOINT;
 /*
  * receive buffers and list structures
  */
-#if __IAR_SYSTEMS_ICC__
+#if defined(__IAR_SYSTEMS_ICC__)
 __packed
 #endif
 struct mcc_receive_buffer {
 	struct mcc_receive_buffer *next;
 	int data_len;
 	char data [MCC_ATTR_BUFFER_SIZE_IN_KB * 1024];
-#if __IAR_SYSTEMS_ICC__
+#if defined(__IAR_SYSTEMS_ICC__)
 };
 #else
 }__attribute__((packed));
 #endif
 typedef struct mcc_receive_buffer MCC_RECEIVE_BUFFER;
 
-#if __IAR_SYSTEMS_ICC__
+#if defined(__IAR_SYSTEMS_ICC__)
 __packed
 #endif
 struct mcc_receive_list {
 	MCC_RECEIVE_BUFFER * head;
 	MCC_RECEIVE_BUFFER * tail;
-#if __IAR_SYSTEMS_ICC__
+#if defined(__IAR_SYSTEMS_ICC__)
 };
 #else
 }__attribute__((packed));
@@ -59,14 +101,16 @@ typedef struct mcc_receive_list MCC_RECEIVE_LIST;
 /*
  * Signals and signal queues
  */
-typedef enum mcc_signal_type {BUFFER_QUEUED, BUFFER_FREED} MCC_SIGNAL_TYPE;
-#if __IAR_SYSTEMS_ICC__
+#define BUFFER_QUEUED (0)
+#define BUFFER_FREED  (1)
+typedef unsigned char MCC_SIGNAL_TYPE;
+#if defined(__IAR_SYSTEMS_ICC__)
 __packed
 #endif
 struct mcc_signal {
 	MCC_SIGNAL_TYPE type;
 	MCC_ENDPOINT    destination;
-#if __IAR_SYSTEMS_ICC__
+#if defined(__IAR_SYSTEMS_ICC__)
 };
 #else
 }__attribute__((packed));
@@ -76,13 +120,13 @@ typedef struct mcc_signal MCC_SIGNAL;
 /*
  * Endpoint registration table
  */
-#if __IAR_SYSTEMS_ICC__
+#if defined(__IAR_SYSTEMS_ICC__)
 __packed
 #endif
 struct endpoint_map_struct {
 	MCC_ENDPOINT      endpoint;
-	MCC_RECEIVE_LIST *list;
-#if __IAR_SYSTEMS_ICC__
+	MCC_RECEIVE_LIST  list;
+#if defined(__IAR_SYSTEMS_ICC__)
 };
 #else
 }__attribute__((packed));
@@ -93,15 +137,14 @@ typedef struct endpoint_map_struct MCC_ENDPOINT_MAP_ITEM;
  * Share Memory data - Bookkeeping data and buffers.
  */
 
-#if __IAR_SYSTEMS_ICC__
+#define MCC_INIT_STRING "mccisrdy"
+
+#if defined(__IAR_SYSTEMS_ICC__)
 __packed
 #endif
 struct mcc_bookeeping_struct {
 	/* String that indicates if this struct has been already initialized */
-	char init_string[8];
-
-	/* List of buffers for each endpoint */
-	MCC_RECEIVE_LIST r_lists[MCC_ATTR_MAX_RECEIVE_ENDPOINTS];
+	char init_string[sizeof(MCC_INIT_STRING)];
 
 	/* List of free buffers */
 	MCC_RECEIVE_LIST free_list;
@@ -115,14 +158,13 @@ struct mcc_bookeeping_struct {
 
 	/* Receive buffers */
 	MCC_RECEIVE_BUFFER r_buffers[MCC_ATTR_NUM_RECEIVE_BUFFERS];
-#if __IAR_SYSTEMS_ICC__
+#if defined(__IAR_SYSTEMS_ICC__)
 };
 #else
 }__attribute__((packed));
 #endif
 typedef struct mcc_bookeeping_struct MCC_BOOKEEPING_STRUCT;
 
-//struct mcc_bookeeping_struct * bookeeping_data;
 extern MCC_BOOKEEPING_STRUCT * bookeeping_data;
 
 /*
@@ -156,8 +198,9 @@ int mcc_register_endpoint(MCC_ENDPOINT endpoint);
 int mcc_queue_signal(MCC_CORE core, MCC_SIGNAL signal);
 int mcc_dequeue_signal(MCC_CORE core, MCC_SIGNAL *signal);
 
-#define MCC_SIGNAL_QUEUE_FULL(core) (((bookeeping_data->signal_queue_tail[core] + 1) % MCC_MAX_OUTSTANDING_SIGNALS) == bookeeping_data->signal_queue_head[core])
+#define MCC_SIGNAL_QUEUE_FULL(core)  (((bookeeping_data->signal_queue_tail[core] + 1) % MCC_MAX_OUTSTANDING_SIGNALS) == bookeeping_data->signal_queue_head[core])
 #define MCC_SIGNAL_QUEUE_EMPTY(core) (bookeeping_data->signal_queue_head[core] == bookeeping_data->signal_queue_tail[core])
+#define ENDPOINTS_EQUAL(e1, e2)      ((e1.core == e2.core) && (e1.node == e2.node) && (e1.port == e2.port))
 
 #endif /* __MCC_COMMON__ */
 
