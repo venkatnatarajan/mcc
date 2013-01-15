@@ -43,6 +43,9 @@
 #ifndef __MCC_COMMON__
 #define __MCC_COMMON__
 
+#define MCC_INIT_STRING "mccisrdy"
+#define MCC_VERSION_STRING "1.0"
+
 typedef unsigned int MCC_BOOLEAN;
 typedef unsigned int MCC_MEM_SIZE;
 #define null ((void*)0)
@@ -123,7 +126,7 @@ typedef struct mcc_signal MCC_SIGNAL;
 #if defined(__IAR_SYSTEMS_ICC__)
 __packed
 #endif
-struct endpoint_map_struct {
+struct mcc_endpoint_map_item {
 	MCC_ENDPOINT      endpoint;
 	MCC_RECEIVE_LIST  list;
 #if defined(__IAR_SYSTEMS_ICC__)
@@ -131,13 +134,27 @@ struct endpoint_map_struct {
 #else
 }__attribute__((packed));
 #endif
-typedef struct endpoint_map_struct MCC_ENDPOINT_MAP_ITEM;
+typedef struct mcc_endpoint_map_item MCC_ENDPOINT_MAP_ITEM;
+
+/*
+ * MCC info structure
+ */
+#if defined(__IAR_SYSTEMS_ICC__)
+__packed
+#endif
+struct mcc_info_struct {
+	/* <major>.<minor> - minor is changed whenever patched, major indicates compatibility */
+	char version_string[sizeof(MCC_VERSION_STRING)];
+#if defined(__IAR_SYSTEMS_ICC__)
+};
+#else
+}__attribute__((packed));
+#endif
+typedef struct mcc_info_struct MCC_INFO_STRUCT;
 
 /*
  * Share Memory data - Bookkeeping data and buffers.
  */
-
-#define MCC_INIT_STRING "mccisrdy"
 
 #if defined(__IAR_SYSTEMS_ICC__)
 __packed
@@ -145,6 +162,9 @@ __packed
 struct mcc_bookeeping_struct {
 	/* String that indicates if this struct has been already initialized */
 	char init_string[sizeof(MCC_INIT_STRING)];
+
+	/* String that indicates the MCC library version */
+	char version_string[sizeof(MCC_VERSION_STRING)];
 
 	/* List of free buffers */
 	MCC_RECEIVE_LIST free_list;

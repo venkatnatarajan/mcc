@@ -54,6 +54,7 @@ extern LWSEM_STRUCT   lwsem_buffer_freed[MCC_NUM_CORES];
 #endif
 
 const char * const init_string = "mccisrdy";
+const char * const version_string = "1.0";
 
 /*!
  * \brief This function initializes the Multi Core Communication.
@@ -93,6 +94,9 @@ int mcc_initialize(MCC_NODE node)
 
     	/* Set init_string in case it has not been set yet by another core */
     	mcc_memcpy((void*)init_string, bookeeping_data->init_string, (unsigned int)sizeof(bookeeping_data->init_string));
+
+    	/* Set version_string */
+    	mcc_memcpy((void*)version_string, bookeeping_data->version_string, (unsigned int)sizeof(bookeeping_data->version_string));
 
         /* Initialize the free list */
         bookeeping_data->free_list.head = &bookeeping_data->r_buffers[0];
@@ -637,6 +641,33 @@ int mcc_free_buffer(MCC_ENDPOINT *endpoint, void *buffer)
     mcc_generate_cpu_to_cpu_interrupt(); //TODO ensure interrupt generation into all cores
 
     /* Semaphore-protected section end */
+    return_value = mcc_release_semaphore();
+    if(return_value != MCC_SUCCESS)
+     	return return_value;
+
+    return return_value;
+}
+
+/*!
+ * \brief This function returns info structure.
+ *
+ * Returns implementation specific information.
+ *
+ * \param[in] node Node number.
+ * \param[out] info_data Pointer to the MCC info structure.
+ */
+int mcc_get_info(MCC_NODE node, MCC_INFO_STRUCT* info_data)
+{
+    int return_value;
+
+    /* Semaphore-protected section start */
+    return_value = mcc_get_semaphore();
+	if(return_value != MCC_SUCCESS)
+		return return_value;
+
+	mcc_memcpy(bookeeping_data->version_string, (void*)info_data->version_string, (unsigned int)sizeof(bookeeping_data->version_string));
+
+	/* Semaphore-protected section end */
     return_value = mcc_release_semaphore();
     if(return_value != MCC_SUCCESS)
      	return return_value;
