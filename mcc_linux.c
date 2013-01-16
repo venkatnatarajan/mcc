@@ -472,6 +472,6 @@ static void __exit mcc_exit(void) /* Destructor */
 module_init(mcc_init);
 module_exit(mcc_exit);
 
-MODULE_LICENSE("BSD");
+MODULE_LICENSE("Dual BSD/GPL");
 
 
