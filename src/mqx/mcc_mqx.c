@@ -36,8 +36,8 @@
 
 /* Global variables */
 CORE_MUTEX_PTR cm_ptr;
-LWSEM_STRUCT   lwsem_buffer_queued[MCC_NUM_CORES];
-LWSEM_STRUCT   lwsem_buffer_freed[MCC_NUM_CORES];
+LWEVENT_STRUCT lwevent_buffer_queued[MCC_NUM_CORES];
+LWEVENT_STRUCT lwevent_buffer_freed[MCC_NUM_CORES];
 
 /*!
  * \brief This function is the CPU-to-CPU interrupt handler.
@@ -62,11 +62,11 @@ static void mcc_cpu_to_cpu_isr(void *param)
     while(mcc_dequeue_signal(MCC_CORE_NUMBER, &serviced_signal)) {
         if(serviced_signal.type == BUFFER_QUEUED) {
             /* Unblock receiver, in case of asynchronous communication */
-            _lwsem_post(&lwsem_buffer_queued[serviced_signal.destination.core]);
+        	_lwevent_set(&lwevent_buffer_queued[serviced_signal.destination.core], 1<<serviced_signal.destination.port);
         }
         else if(serviced_signal.type == BUFFER_FREED) {
             /* Unblock sender, in case of asynchronous communication */
-            _lwsem_post(&lwsem_buffer_freed[MCC_CORE_NUMBER]);
+        	_lwevent_set(&lwevent_buffer_freed[MCC_CORE_NUMBER], 1);
         }
     }
 }
@@ -148,6 +148,7 @@ int mcc_register_cpu_to_cpu_isr(void)
     
     if(vector_number != 0) {
         _int_install_isr((_mqx_uint)vector_number, mcc_cpu_to_cpu_isr, NULL);
+        mcc_clear_cpu_to_cpu_interrupt(MCC_CORE_NUMBER);
         _bsp_int_init(vector_number, 3, 0, TRUE); //TODO: handle priority value correctly, define in BSP?
         _bsp_int_enable(vector_number);
         return MCC_SUCCESS;

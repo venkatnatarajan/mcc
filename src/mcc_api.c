@@ -1,20 +1,20 @@
 /*HEADER*********************************************************************
-* 
+*
 * Copyright (c) 2013 Freescale Semiconductor;
 * All Rights Reserved
 *
-*************************************************************************** 
+***************************************************************************
 *
-* THIS SOFTWARE IS PROVIDED BY FREESCALE "AS IS" AND ANY EXPRESSED OR 
-* IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES 
-* OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  
-* IN NO EVENT SHALL FREESCALE OR ITS CONTRIBUTORS BE LIABLE FOR ANY DIRECT, 
-* INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES 
-* (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
-* SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) 
-* HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, 
-* STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING 
-* IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF 
+* THIS SOFTWARE IS PROVIDED BY FREESCALE "AS IS" AND ANY EXPRESSED OR
+* IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+* OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+* IN NO EVENT SHALL FREESCALE OR ITS CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+* INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+* (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+* SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+* HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+* STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
+* IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
 * THE POSSIBILITY OF SUCH DAMAGE.
 *
 ***************************************************************************
@@ -37,12 +37,12 @@
 #include "mcc_linux.h"
 #elif (MCC_OS_USED == MCC_MQX)
 #include "mcc_mqx.h"
-extern LWSEM_STRUCT   lwsem_buffer_queued[MCC_NUM_CORES];
-extern LWSEM_STRUCT   lwsem_buffer_freed[MCC_NUM_CORES];
+extern LWEVENT_STRUCT lwevent_buffer_queued[MCC_NUM_CORES];
+extern LWEVENT_STRUCT lwevent_buffer_freed[MCC_NUM_CORES];
 #endif
 
-const char * const init_string = "mccisrdy";
-const char * const version_string = "1.0";
+const char * const init_string    = MCC_INIT_STRING;
+const char * const version_string = MCC_VERSION_STRING;
 
 /*!
  * \brief This function initializes the Multi Core Communication.
@@ -59,8 +59,8 @@ int mcc_initialize(MCC_NODE node)
 
 #if (MCC_OS_USED == MCC_MQX)
     //TODO move to ??? (where?)
-    _lwsem_create(&lwsem_buffer_queued[MCC_CORE_NUMBER], 0);
-    _lwsem_create(&lwsem_buffer_freed[MCC_CORE_NUMBER], 0);
+    _lwevent_create(&lwevent_buffer_queued[MCC_CORE_NUMBER],0);
+    _lwevent_create(&lwevent_buffer_freed[MCC_CORE_NUMBER],0);
     //_DCACHE_DISABLE(); //TODO should be in the OS-specific initialization
 #endif
     /* Initialize synchronization module */
@@ -125,8 +125,8 @@ int mcc_destroy(MCC_NODE node)
     int i = 0, return_value;
 
 #if (MCC_OS_USED == MCC_MQX)
-    _lwsem_destroy(&lwsem_buffer_queued[MCC_CORE_NUMBER]);
-    _lwsem_destroy(&lwsem_buffer_freed[MCC_CORE_NUMBER]);
+    _lwevent_destroy(&lwevent_buffer_queued[MCC_CORE_NUMBER]);
+    _lwevent_destroy(&lwevent_buffer_freed[MCC_CORE_NUMBER]);
 #endif
 
     /* Semaphore-protected section start */
@@ -262,7 +262,7 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
     /* Dequeue the buffer from the free list */
     buf = mcc_dequeue_buffer(&bookeeping_data->free_list);
 
-    if(buf == null) {
+    while(buf == null) {
     	mcc_release_semaphore();
 
     	/* Non-blocking call */
@@ -272,7 +272,8 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
         /* Blocking call - wait forever */
         else if(timeout_us == 0xFFFFFFFF) {
 #if (MCC_OS_USED == MCC_MQX)
-        	_lwsem_wait(&lwsem_buffer_freed[endpoint->core]);
+        	_lwevent_wait_ticks(&lwevent_buffer_freed[endpoint->core], 1, TRUE, 0);
+        	_lwevent_clear(&lwevent_buffer_freed[endpoint->core], 1);
 #endif
         	mcc_get_semaphore();
         	buf = mcc_dequeue_buffer(&bookeeping_data->free_list);
@@ -285,7 +286,8 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
         	time.SECONDS = time_us_tmp/1000000;
         	time.MILLISECONDS = time_us_tmp*1000;
         	_time_to_ticks(&time, &tick_time);
-        	_lwsem_wait_until(&lwsem_buffer_freed[endpoint->core], &tick_time);
+        	_lwevent_wait_until(&lwevent_buffer_freed[endpoint->core], 1, TRUE, &tick_time);
+        	_lwevent_clear(&lwevent_buffer_freed[endpoint->core], 1);
 #endif
         	mcc_get_semaphore();
         	buf = mcc_dequeue_buffer(&bookeeping_data->free_list);
@@ -303,7 +305,7 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
     if(return_value != MCC_SUCCESS)
      	return return_value;
 
-    /* Copy the message into the MCC receive buffer */
+	/* Copy the message into the MCC receive buffer */
     mcc_memcpy(msg, (void*)buf->data, (unsigned int)msg_size);
     buf->data_len = msg_size;
 
@@ -385,7 +387,7 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
     	/* Blocking call */
     	else if(timeout_us == 0xFFFFFFFF) {
 #if (MCC_OS_USED == MCC_MQX)
-    		_lwsem_wait(&lwsem_buffer_queued[endpoint->core]);
+    		_lwevent_wait_ticks(&lwevent_buffer_queued[endpoint->core], 1<<endpoint->port, TRUE, 0);
 #endif
     	}
     	/* timeout_us > 0 */
@@ -396,23 +398,13 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
         	time.SECONDS = time_us_tmp/1000000;
         	time.MILLISECONDS = time_us_tmp*1000;
         	_time_to_ticks(&time, &tick_time);
-        	_lwsem_wait_until(&lwsem_buffer_queued[endpoint->core], &tick_time);
+        	_lwevent_wait_until(&lwevent_buffer_queued[endpoint->core], 1<<endpoint->port, TRUE, &tick_time);
 #endif
     	}
     }
 
-    /* Semaphore-protected section start */
-    return_value = mcc_get_semaphore();
-    if(return_value != MCC_SUCCESS)
-    	return return_value;
-
-    /* Get list of buffers kept by the particular endpoint */
-    list = mcc_get_endpoint_list(*endpoint);
-
-    /* Semaphore-protected section end */
-    return_value = mcc_release_semaphore();
-    if(return_value != MCC_SUCCESS)
-     	return return_value;
+    /* Clear event bit specified for the particular endpoint in the lwevent_buffer_queued lwevent group */
+    _lwevent_clear(&lwevent_buffer_queued[endpoint->core], 1<<endpoint->port);
 
     if(list->head == (MCC_RECEIVE_BUFFER*)0) {
     	/* Buffer not dequeued before the timeout */
@@ -496,7 +488,7 @@ int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_
     	/* Blocking call */
     	else if(timeout_us == 0xFFFFFFFF) {
 #if (MCC_OS_USED == MCC_MQX)
-    		_lwsem_wait(&lwsem_buffer_queued[endpoint->core]);
+    		_lwevent_wait_ticks(&lwevent_buffer_queued[endpoint->core], 1<<endpoint->port, TRUE, 0);
 #endif
     	}
     	/* timeout_us > 0 */
@@ -507,23 +499,13 @@ int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_
         	time.SECONDS = time_us_tmp/1000000;
         	time.MILLISECONDS = time_us_tmp*1000;
         	_time_to_ticks(&time, &tick_time);
-        	_lwsem_wait_until(&lwsem_buffer_queued[endpoint->core], &tick_time);
+        	_lwevent_wait_until(&lwevent_buffer_queued[endpoint->core], 1<<endpoint->port, TRUE, &tick_time);
 #endif
     	}
     }
 
-	/* Semaphore-protected section start */
-    return_value = mcc_get_semaphore();
-	if(return_value != MCC_SUCCESS)
-		return return_value;
-
-    /* Get list of buffers kept by the particular endpoint */
-    list = mcc_get_endpoint_list(*endpoint);
-
-    /* Semaphore-protected section end */
-    return_value = mcc_release_semaphore();
-    if(return_value != MCC_SUCCESS)
-     	return return_value;
+    /* Clear event bit specified for the particular endpoint in the lwevent_buffer_queued lwevent group */
+    _lwevent_clear(&lwevent_buffer_queued[endpoint->core], 1<<endpoint->port);
 
     if(list->head == (MCC_RECEIVE_BUFFER*)0) {
 		/* Buffer not dequeued before the timeout */

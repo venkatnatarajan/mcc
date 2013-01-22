@@ -33,6 +33,7 @@
 
 #include <mqx.h>
 #include <bsp.h>
+#include <lwevent.h>
 #include "core_mutex.h"
 
 /* Semaphore-related functions */
