@@ -53,6 +53,7 @@ int mcc_sema4_grab(unsigned char gate_num)
 	while(timeout_ms && (gate_val != SEMA4_GATEn_READ(gate_num)))
 	{
 		udelay(1000);	// 1 milli-second
+		SEMA4_GATEn_WRITE(gate_val, gate_num);
 		timeout_ms--;
 	}
 
