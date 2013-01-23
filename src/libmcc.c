@@ -36,7 +36,7 @@ static MCC_CORE this_core = MCC_CORE_NUMBER;
 static MCC_NODE this_node;
 static MCC_ENDPOINT endpoints[MCC_ATTR_MAX_RECEIVE_ENDPOINTS];
 static MCC_ENDPOINT send_endpoint, recv_endpoint;
-static int block_mode = 0; //O_NONBLOCK
+static unsigned int current_timeout_us = 0xFFFFFFFF; //0
 
 /*!
  * \brief This function initializes the Multi Core Communication.
@@ -152,9 +152,9 @@ int mcc_destroy_endpoint(MCC_ENDPOINT *endpoint)
  * \param[in] endpoint Pointer to the endpoint structure.
  * \param[in] msg Pointer to the meassge to be sent.
  * \param[in] msg_size Size of the meassge to be sent.
- * \param[in] timeout_us Timeout in microseconds. 0 = non-blocking call, 0xffff = blocking call .
+ * \param[in] timeout_us Timeout in microseconds. 0 = non-blocking call, 0xffffffff = blocking call .
  *
- * TODO handle values besides 0 or 0xffff
+ * TODO handle values besides 0 or 0xffffffff
  */
 int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned int timeout_us)
 {
@@ -168,19 +168,25 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
 		send_endpoint = *endpoint;
 	}
 
-	// blocking or not
-	if(block_mode != new_block_mode)
+	//check if timeout changed
+	if(timeout_us != current_timeout_us)
 	{
-		if(fcntl(fd, F_SETFL, new_block_mode))
+		if(ioctl(fd, MCC_SET_TIMEOUT, &timeout_us))
 			return MCC_ERR_INVAL;
-		block_mode = new_block_mode;
+
+		if((timeout_us == 0) || (current_timeout_us == 0))
+		{
+			if(fcntl(fd, F_SETFL, new_block_mode))
+				return MCC_ERR_INVAL;
+		}
+		current_timeout_us = timeout_us;
 	}
 
 	// do the write
 	errno = 0;
     write(fd, msg, msg_size);
-	printf("mcc_send: errno=%d\n", errno);
-	perror("mcc_send: perror()");
+    if(errno)
+    	perror("mcc_send");
 
     return errno == 0 ? MCC_SUCCESS : MCC_ERR_INVAL;
 }
@@ -196,7 +202,7 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
  * \param[in] buffer Pointer to the user-app. buffer data will be copied into.
  * \param[in] buffer_size Size of the user-app. buffer data will be copied into.
  * \param[out] recv_size Pointer to the number of received bytes.
- * \param[in] timeout_us Timeout in microseconds. 0 = non-blocking call, 0xffff = blocking call .
+ * \param[in] timeout_us Timeout in microseconds. 0 = non-blocking call, 0xffffffff = blocking call
  */
 int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size, MCC_MEM_SIZE *recv_size, unsigned int timeout_us)
 {
@@ -210,20 +216,26 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
 		recv_endpoint = *endpoint;
 	}
 
-	// blocking or not
-	if(block_mode != new_block_mode)
+	//check if timeout changed
+	if(timeout_us != current_timeout_us)
 	{
-		if(fcntl(fd, F_SETFL, new_block_mode))
+		if(ioctl(fd, MCC_SET_TIMEOUT, &timeout_us))
 			return MCC_ERR_INVAL;
-		block_mode = new_block_mode;
+
+		if((timeout_us == 0) || (current_timeout_us == 0))
+		{
+			if(fcntl(fd, F_SETFL, new_block_mode))
+				return MCC_ERR_INVAL;
+		}
+		current_timeout_us = timeout_us;
 	}
 
+	errno = 0;
 	*recv_size = read(fd, buffer, buffer_size);
-	if(*recv_size < 0)
-		perror("recv read error");
-	printf("mcc_recv_copy: *recv_size=%d\n", *recv_size);
+	if(errno)
+		perror("mcc_recv_copy");
 
-	return (*recv_size) < 0 ? MCC_ERR_INVAL : MCC_SUCCESS;
+	return errno != 0 ? MCC_ERR_INVAL : MCC_SUCCESS;
 }
 
 /*!
@@ -237,7 +249,7 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
  * \param[in] endpoint Pointer to the endpoint structure.
  * \param[out] buffer_p Pointer to the MCC buffer of the shared memory where the received data is stored.
  * \param[out] recv_size Pointer to the number of received bytes.
- * \param[in] timeout_us Timeout in microseconds. 0 = non-blocking call, 0xffff = blocking call .
+ * \param[in] timeout_us Timeout in microseconds. 0 = non-blocking call, 0xffffffff = blocking call .
  */
 int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_size, unsigned int timeout_us)
 {
