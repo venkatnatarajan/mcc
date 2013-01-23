@@ -119,7 +119,7 @@ __packed
 #endif
 struct mcc_bookeeping_struct {
 	/* String that indicates if this struct has been already initialized */
-	char init_string[sizeof(MCC_INIT_STRING)];
+	char init_string[8]; // temporary till next mqx release`
 
 	/* List of buffers for each endpoint */
 	MCC_RECEIVE_LIST r_lists[MCC_ATTR_MAX_RECEIVE_ENDPOINTS];
