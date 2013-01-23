@@ -33,6 +33,7 @@
 #include <linux/delay.h>
 #include <linux/interrupt.h>
 #include <linux/sched.h>
+#include <linux/time.h>
 
 // common to MQX and Linux
 // TODO the order of these should not matter
@@ -58,6 +59,7 @@ struct mcc_private_data
 	WRITE_MODE write_mode;
 	struct mqx_boot_info_struct mqx_boot_info;
 	char *virt_load_addr;
+	unsigned int timeout_us;
 };
 
 static dev_t first;
@@ -142,6 +144,7 @@ static int mcc_open(struct inode *i, struct file *f)
 	memset(priv_p, 0, sizeof(struct mcc_private_data));
 
 	priv_p->write_mode = MODE_MCC;
+	priv_p->timeout_us = 0xffffffff;
 
 	f->private_data = priv_p;
 
@@ -169,6 +172,7 @@ static ssize_t mcc_read(struct file *f, char __user *buf, size_t len, loff_t *of
 	MCC_RECEIVE_BUFFER * buffer;
 	MCC_RECEIVE_LIST * recv_list;
 	int copy_len = 0;
+	int retval = 0;
 
 	// get my receive list
 	if(mcc_sema4_grab(MCC_SEMAPHORE_NUMBER))
@@ -183,8 +187,20 @@ static ssize_t mcc_read(struct file *f, char __user *buf, size_t len, loff_t *of
 	// block unless asked not to
 	if(!(f->f_flags & O_NONBLOCK))
 	{
-		if(wait_event_interruptible(wait_queue, recv_list->head))
-			return -ERESTARTSYS;
+		if(priv_p->timeout_us == 0xFFFFFFFF)
+		{
+			if(wait_event_interruptible(wait_queue, recv_list->head))
+				return -ERESTARTSYS;
+		}
+		else
+		{
+			// return: 0 = timeout, >0 = woke up with that many jiffies left, <0 = error
+			retval = wait_event_interruptible_timeout(wait_queue, recv_list->head, usecs_to_jiffies(priv_p->timeout_us));
+			if(retval == 0)
+				return -ETIME;
+			else if(retval < 0)
+				return retval;
+		}
 	}
 
 	// dequeue the buffer (if any)
@@ -228,6 +244,7 @@ static ssize_t mcc_write(struct file *f, const char __user *buf, size_t len, lof
 	struct mcc_private_data *priv_p = f->private_data;
 	MCC_RECEIVE_BUFFER * buffer;
 	MCC_RECEIVE_LIST * send_list;
+	int retval;
 
 	if(priv_p->write_mode == MODE_IMAGE_LOAD)
 	{
@@ -255,8 +272,20 @@ static ssize_t mcc_write(struct file *f, const char __user *buf, size_t len, lof
 	// block unless asked not to
 	if(!(f->f_flags & O_NONBLOCK))
 	{
-		if(wait_event_interruptible(wait_queue, bookeeping_data->free_list.head))
-		return -ERESTARTSYS;
+		if(priv_p->timeout_us == 0xFFFFFFFF)
+		{
+			if(wait_event_interruptible(wait_queue, bookeeping_data->free_list.head))
+				return -ERESTARTSYS;
+		}
+		else
+		{
+			// return: 0 = timeout, >0 = woke up with that many jiffies left, <0 = error
+			retval = wait_event_interruptible_timeout(wait_queue, bookeeping_data->free_list.head, usecs_to_jiffies(priv_p->timeout_us));
+			if(retval == 0)
+				return -ETIME;
+			else if(retval < 0)
+				return retval;
+		}
 	}
 
 	// get a free data buffer
@@ -360,6 +389,11 @@ static long mcc_ioctl(struct file *f, unsigned cmd, unsigned long arg)
 		writel(priv_p->mqx_boot_info.phys_start_addr, MVF_IO_ADDRESS(0x4006E028));
 		// 0x4006B08C - CCM_CCOWR Register - Set bit 16 - AUX_CORE_WKUP to enable M4 clock.
 		writel(0x15a5a, MVF_IO_ADDRESS(0x4006B08C));
+		break;
+
+	case MCC_SET_TIMEOUT:
+		if (copy_from_user(&priv_p->timeout_us, buf, sizeof(priv_p->timeout_us)))
+			return -EFAULT;
 		break;
 
 	default:
