@@ -18,6 +18,9 @@
 #ifndef __MCC_COMMON__
 #define __MCC_COMMON__
 
+#define MCC_INIT_STRING    "mccisrdy"
+#define MCC_VERSION_STRING "1.0"
+
 typedef unsigned int MCC_BOOLEAN;
 typedef unsigned int MCC_MEM_SIZE;
 #define null ((void*)0)
@@ -29,14 +32,14 @@ typedef unsigned int MCC_CORE;
 typedef unsigned int MCC_NODE;
 typedef unsigned int MCC_PORT;
 
-#if defined(__IAR_SYSTEMS_ICC__) && (__IAR_SYSTEMS_ICC__ != 0)
+#if defined(__IAR_SYSTEMS_ICC__)
 __packed
 #endif
 struct mcc_endpoint {
 	MCC_CORE core;
 	MCC_NODE node;
 	MCC_PORT port;
-#if defined(__IAR_SYSTEMS_ICC__) && (__IAR_SYSTEMS_ICC__ != 0)
+#if defined(__IAR_SYSTEMS_ICC__)
 };
 #else
 }__attribute__((packed));
@@ -46,27 +49,27 @@ typedef struct mcc_endpoint MCC_ENDPOINT;
 /*
  * receive buffers and list structures
  */
-#if defined(__IAR_SYSTEMS_ICC__) && (__IAR_SYSTEMS_ICC__ != 0)
+#if defined(__IAR_SYSTEMS_ICC__)
 __packed
 #endif
 struct mcc_receive_buffer {
 	struct mcc_receive_buffer *next;
 	int data_len;
 	char data [MCC_ATTR_BUFFER_SIZE_IN_KB * 1024];
-#if defined(__IAR_SYSTEMS_ICC__) && (__IAR_SYSTEMS_ICC__ != 0)
+#if defined(__IAR_SYSTEMS_ICC__)
 };
 #else
 }__attribute__((packed));
 #endif
 typedef struct mcc_receive_buffer MCC_RECEIVE_BUFFER;
 
-#if defined(__IAR_SYSTEMS_ICC__) && (__IAR_SYSTEMS_ICC__ != 0)
+#if defined(__IAR_SYSTEMS_ICC__)
 __packed
 #endif
 struct mcc_receive_list {
 	MCC_RECEIVE_BUFFER * head;
 	MCC_RECEIVE_BUFFER * tail;
-#if defined(__IAR_SYSTEMS_ICC__) && (__IAR_SYSTEMS_ICC__ != 0)
+#if defined(__IAR_SYSTEMS_ICC__)
 };
 #else
 }__attribute__((packed));
@@ -77,15 +80,15 @@ typedef struct mcc_receive_list MCC_RECEIVE_LIST;
  * Signals and signal queues
  */
 #define BUFFER_QUEUED (0)
-#define BUFFER_FREED (1)
+#define BUFFER_FREED  (1)
 typedef unsigned char MCC_SIGNAL_TYPE;
-#if defined(__IAR_SYSTEMS_ICC__) && (__IAR_SYSTEMS_ICC__ != 0)
+#if defined(__IAR_SYSTEMS_ICC__)
 __packed
 #endif
 struct mcc_signal {
 	MCC_SIGNAL_TYPE type;
 	MCC_ENDPOINT    destination;
-#if defined(__IAR_SYSTEMS_ICC__) && (__IAR_SYSTEMS_ICC__ != 0)
+#if defined(__IAR_SYSTEMS_ICC__)
 };
 #else
 }__attribute__((packed));
@@ -95,34 +98,48 @@ typedef struct mcc_signal MCC_SIGNAL;
 /*
  * Endpoint registration table
  */
-#if defined(__IAR_SYSTEMS_ICC__) && (__IAR_SYSTEMS_ICC__ != 0)
+#if defined(__IAR_SYSTEMS_ICC__)
 __packed
 #endif
-struct endpoint_map_struct {
+struct mcc_endpoint_map_item {
 	MCC_ENDPOINT      endpoint;
-	MCC_RECEIVE_LIST *list;
-#if defined(__IAR_SYSTEMS_ICC__) && (__IAR_SYSTEMS_ICC__ != 0)
+	MCC_RECEIVE_LIST  list;
+#if defined(__IAR_SYSTEMS_ICC__)
 };
 #else
 }__attribute__((packed));
 #endif
-typedef struct endpoint_map_struct MCC_ENDPOINT_MAP_ITEM;
+typedef struct mcc_endpoint_map_item MCC_ENDPOINT_MAP_ITEM;
+
+/*
+ * MCC info structure
+ */
+#if defined(__IAR_SYSTEMS_ICC__)
+__packed
+#endif
+struct mcc_info_struct {
+	/* <major>.<minor> - minor is changed whenever patched, major indicates compatibility */
+	char version_string[sizeof(MCC_VERSION_STRING)];
+#if defined(__IAR_SYSTEMS_ICC__)
+};
+#else
+}__attribute__((packed));
+#endif
+typedef struct mcc_info_struct MCC_INFO_STRUCT;
 
 /*
  * Share Memory data - Bookkeeping data and buffers.
  */
 
-#define MCC_INIT_STRING "mccisrdy"
-
-#if defined(__IAR_SYSTEMS_ICC__) && (__IAR_SYSTEMS_ICC__ != 0)
+#if defined(__IAR_SYSTEMS_ICC__)
 __packed
 #endif
 struct mcc_bookeeping_struct {
 	/* String that indicates if this struct has been already initialized */
-	char init_string[8]; // temporary till next mqx release`
+	char init_string[sizeof(MCC_INIT_STRING)];
 
-	/* List of buffers for each endpoint */
-	MCC_RECEIVE_LIST r_lists[MCC_ATTR_MAX_RECEIVE_ENDPOINTS];
+	/* String that indicates the MCC library version */
+	char version_string[sizeof(MCC_VERSION_STRING)];
 
 	/* List of free buffers */
 	MCC_RECEIVE_LIST free_list;
@@ -136,7 +153,7 @@ struct mcc_bookeeping_struct {
 
 	/* Receive buffers */
 	MCC_RECEIVE_BUFFER r_buffers[MCC_ATTR_NUM_RECEIVE_BUFFERS];
-#if defined(__IAR_SYSTEMS_ICC__) && (__IAR_SYSTEMS_ICC__ != 0)
+#if defined(__IAR_SYSTEMS_ICC__)
 };
 #else
 }__attribute__((packed));
@@ -176,8 +193,9 @@ int mcc_register_endpoint(MCC_ENDPOINT endpoint);
 int mcc_queue_signal(MCC_CORE core, MCC_SIGNAL signal);
 int mcc_dequeue_signal(MCC_CORE core, MCC_SIGNAL *signal);
 
-#define MCC_SIGNAL_QUEUE_FULL(core) (((bookeeping_data->signal_queue_tail[core] + 1) % MCC_MAX_OUTSTANDING_SIGNALS) == bookeeping_data->signal_queue_head[core])
+#define MCC_SIGNAL_QUEUE_FULL(core)  (((bookeeping_data->signal_queue_tail[core] + 1) % MCC_MAX_OUTSTANDING_SIGNALS) == bookeeping_data->signal_queue_head[core])
 #define MCC_SIGNAL_QUEUE_EMPTY(core) (bookeeping_data->signal_queue_head[core] == bookeeping_data->signal_queue_tail[core])
+#define ENDPOINTS_EQUAL(e1, e2)      ((e1.core == e2.core) && (e1.node == e2.node) && (e1.port == e2.port))
 
 #endif /* __MCC_COMMON__ */
 

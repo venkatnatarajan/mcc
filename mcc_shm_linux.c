@@ -33,11 +33,13 @@
 #include "mcc_sema4_linux.h"
 
 #define INIT_STRING_LEN (sizeof(bookeeping_data->init_string))
+#define VERSION_STRING_LEN (sizeof(bookeeping_data->version_string))
 
 struct mcc_bookeeping_struct *bookeeping_data = null;
 
 void print_bookeeping_data(void)
 {
+#if 0
 	int i,j;
 	MCC_SIGNAL *signal;
 	char *sig_type;
@@ -88,6 +90,7 @@ void print_bookeeping_data(void)
 			bookeeping_data->r_buffers[i].data[6], bookeeping_data->r_buffers[i].data[7], bookeeping_data->r_buffers[i].data[8],
 			bookeeping_data->r_buffers[i].data[9]);
 	}
+#endif
 }
 
 int mcc_map_shared_memory(void)
@@ -146,6 +149,9 @@ int mcc_initialize_shared_mem(void)
 		/* Set init_flag in case it has not been set yet by another core */
 		//memcpy(bookeeping_data->init_string, MCC_INIT_STRING, INIT_STRING_LEN);
 		memcpy_toio(bookeeping_data->init_string, MCC_INIT_STRING, INIT_STRING_LEN);
+
+	    	/* Set version_string */
+		memcpy_toio(bookeeping_data->version_string, MCC_VERSION_STRING, VERSION_STRING_LEN);
 
 		/* Initialize the free list */
 		bookeeping_data->free_list.head = (MCC_RECEIVE_BUFFER *)VIRT_TO_MQX(&bookeeping_data->r_buffers[0]);

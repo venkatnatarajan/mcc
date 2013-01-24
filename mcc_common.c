@@ -1,6 +1,6 @@
 /*
  * Copyright 2013 Freescale Semiconductor
- *
+  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -55,11 +55,6 @@ int mcc_register_endpoint(MCC_ENDPOINT endpoint)
 			bookeeping_data->endpoint_table[i].endpoint.core = endpoint.core;
 			bookeeping_data->endpoint_table[i].endpoint.node = endpoint.node;
 			bookeeping_data->endpoint_table[i].endpoint.port = endpoint.port;
-#if (MCC_OS_USED == MCC_MQX)
-			bookeeping_data->endpoint_table[i].list = &bookeeping_data->r_lists[i];
-#elif (MCC_OS_USED == MCC_LINUX)
-			bookeeping_data->endpoint_table[i].list = (MCC_RECEIVE_LIST *)VIRT_TO_MQX(&bookeeping_data->r_lists[i]);
-#endif
 			return MCC_SUCCESS;
 		}
 	}
@@ -79,22 +74,19 @@ int mcc_remove_endpoint(MCC_ENDPOINT endpoint)
 	int i=0;
 	for(i = 0; i < MCC_ATTR_MAX_RECEIVE_ENDPOINTS; i++) {
 
-		if(	(bookeeping_data->endpoint_table[i].endpoint.core == endpoint.core) &&
-			(bookeeping_data->endpoint_table[i].endpoint.node == endpoint.node) &&
-			(bookeeping_data->endpoint_table[i].endpoint.port == endpoint.port)) {
-
+		if(ENDPOINTS_EQUAL(bookeeping_data->endpoint_table[i].endpoint, endpoint)) {
 			/* clear the queue */
 #if (MCC_OS_USED == MCC_LINUX)
-			MCC_RECEIVE_BUFFER * buffer = mcc_dequeue_buffer((MCC_RECEIVE_LIST *)MQX_TO_VIRT(bookeeping_data->endpoint_table[i].list));
+			MCC_RECEIVE_BUFFER * buffer = mcc_dequeue_buffer((MCC_RECEIVE_LIST *)MQX_TO_VIRT(&bookeeping_data->endpoint_table[i].list));
 			while(buffer) {
 				mcc_queue_buffer((MCC_RECEIVE_LIST *)MQX_TO_VIRT(&bookeeping_data->free_list), buffer);
-				buffer = mcc_dequeue_buffer((MCC_RECEIVE_LIST *)MQX_TO_VIRT(bookeeping_data->endpoint_table[i].list));
+				buffer = mcc_dequeue_buffer((MCC_RECEIVE_LIST *)MQX_TO_VIRT(&bookeeping_data->endpoint_table[i].list));
 			}
 #elif (MCC_OS_USED == MCC_MQX)
-			MCC_RECEIVE_BUFFER * buffer = mcc_dequeue_buffer(bookeeping_data->endpoint_table[i].list);
+			MCC_RECEIVE_BUFFER * buffer = mcc_dequeue_buffer((MCC_RECEIVE_LIST *)&bookeeping_data->endpoint_table[i].list);
 			while(buffer) {
 				mcc_queue_buffer(&bookeeping_data->free_list, buffer);
-				buffer = mcc_dequeue_buffer(bookeeping_data->endpoint_table[i].list);
+				buffer = mcc_dequeue_buffer((MCC_RECEIVE_LIST *)&bookeeping_data->endpoint_table[i].list);
 			}
 #endif
 			/* indicate free */
@@ -178,13 +170,11 @@ MCC_RECEIVE_LIST * mcc_get_endpoint_list(MCC_ENDPOINT endpoint)
 	int i=0;
 	for(i = 0; i<MCC_ATTR_MAX_RECEIVE_ENDPOINTS; i++) {
 
-		if( (bookeeping_data->endpoint_table[i].endpoint.core == endpoint.core) &&
-			(bookeeping_data->endpoint_table[i].endpoint.node == endpoint.node) &&
-			(bookeeping_data->endpoint_table[i].endpoint.port == endpoint.port))
+		if(ENDPOINTS_EQUAL(bookeeping_data->endpoint_table[i].endpoint, endpoint))
 #if (MCC_OS_USED == MCC_LINUX)
-			return (MCC_RECEIVE_LIST *)MQX_TO_VIRT(bookeeping_data->endpoint_table[i].list);
+			return (MCC_RECEIVE_LIST *)&bookeeping_data->endpoint_table[i].list;
 #elif (MCC_OS_USED == MCC_MQX)
-			return bookeeping_data->endpoint_table[i].list;
+			return (MCC_RECEIVE_LIST *)&bookeeping_data->endpoint_table[i].list;
 #endif
 	}
 	return null;

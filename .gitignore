@@ -16,16 +16,5 @@ mcc_linux.o
 mcc_sema4_linux.o
 mcc_shm_linux.o
 modules.order
-nothing
-added
-to
-commit
-but
-untracked
-files
-present
-(use
-git
-add
-to
-track)
+#gedit backup files
+*~
