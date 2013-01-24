@@ -36,7 +36,10 @@
 #include "linux/mcc_shm_linux.h"
 #include <mach/hardware.h>
 #include <linux/kernel.h>
+#elif (MCC_OS_USED == MCC_MQX)
+#include "mcc_mqx.h"
 #endif
+
 
 #if (MCC_OS_USED == MCC_MQX)
 MCC_BOOKEEPING_STRUCT * bookeeping_data;
@@ -62,12 +65,13 @@ int mcc_register_endpoint(MCC_ENDPOINT endpoint)
 	if(mcc_get_endpoint_list(endpoint))
 		return MCC_ERR_ENDPOINT;
 
+	MCC_DCACHE_INVALIDATE_MLINES(&bookeeping_data->endpoint_table[0], MCC_ATTR_MAX_RECEIVE_ENDPOINTS * sizeof(MCC_ENDPOINT_MAP_ITEM));
 	for(i = 0; i < MCC_ATTR_MAX_RECEIVE_ENDPOINTS; i++) {
-
 		if(bookeeping_data->endpoint_table[i].endpoint.port == MCC_RESERVED_PORT_NUMBER) {
 			bookeeping_data->endpoint_table[i].endpoint.core = endpoint.core;
 			bookeeping_data->endpoint_table[i].endpoint.node = endpoint.node;
 			bookeeping_data->endpoint_table[i].endpoint.port = endpoint.port;
+			MCC_DCACHE_FLUSH_MLINES(&bookeeping_data->endpoint_table[i], sizeof(MCC_ENDPOINT_MAP_ITEM));
 			return MCC_SUCCESS;
 		}
 	}
@@ -85,6 +89,7 @@ int mcc_register_endpoint(MCC_ENDPOINT endpoint)
 int mcc_remove_endpoint(MCC_ENDPOINT endpoint)
 {
 	int i=0;
+	MCC_DCACHE_INVALIDATE_MLINES(&bookeeping_data->endpoint_table[0], MCC_ATTR_MAX_RECEIVE_ENDPOINTS * sizeof(MCC_ENDPOINT_MAP_ITEM));
 	for(i = 0; i < MCC_ATTR_MAX_RECEIVE_ENDPOINTS; i++) {
 
 		if(ENDPOINTS_EQUAL(bookeeping_data->endpoint_table[i].endpoint, endpoint)) {
@@ -104,6 +109,7 @@ int mcc_remove_endpoint(MCC_ENDPOINT endpoint)
 #endif
 			/* indicate free */
 			bookeeping_data->endpoint_table[i].endpoint.port = MCC_RESERVED_PORT_NUMBER;
+			MCC_DCACHE_FLUSH_LINE((pointer)&bookeeping_data->endpoint_table[i].endpoint.port);
 			return MCC_SUCCESS;
 		}
 	}
@@ -129,6 +135,7 @@ MCC_RECEIVE_BUFFER * mcc_dequeue_buffer(MCC_RECEIVE_LIST *list)
 		if(list->tail == next_buf)
 			list->tail = null;
 	}
+	MCC_DCACHE_FLUSH_MLINES(list, sizeof(MCC_RECEIVE_LIST));
 	return next_buf_virt;
 #elif (MCC_OS_USED == MCC_MQX)
 	if(next_buf) {
@@ -136,6 +143,7 @@ MCC_RECEIVE_BUFFER * mcc_dequeue_buffer(MCC_RECEIVE_LIST *list)
 		if(list->tail == next_buf)
 			list->tail = null;
 	}
+	MCC_DCACHE_FLUSH_MLINES(list, sizeof(MCC_RECEIVE_LIST));
 	return next_buf;
 #endif
 }
@@ -159,6 +167,8 @@ void mcc_queue_buffer(MCC_RECEIVE_LIST *list, MCC_RECEIVE_BUFFER * r_buffer)
 		list->head = r_buffer_mqx;
 	r_buffer->next = null;
 	list->tail = r_buffer_mqx;
+	MCC_DCACHE_FLUSH_MLINES(list, sizeof(MCC_RECEIVE_LIST));
+	MCC_DCACHE_FLUSH_MLINES(r_buffer, sizeof(MCC_RECEIVE_BUFFER));
 #elif (MCC_OS_USED == MCC_MQX)
 	MCC_RECEIVE_BUFFER * last_buf = list->tail;
 	if(last_buf)
@@ -167,6 +177,8 @@ void mcc_queue_buffer(MCC_RECEIVE_LIST *list, MCC_RECEIVE_BUFFER * r_buffer)
 		list->head = r_buffer;
 	r_buffer->next = null;
 	list->tail = r_buffer;
+	MCC_DCACHE_FLUSH_MLINES(list, sizeof(MCC_RECEIVE_LIST));
+	MCC_DCACHE_FLUSH_MLINES(r_buffer, sizeof(MCC_RECEIVE_BUFFER));
 #endif
 }
 
@@ -181,6 +193,7 @@ void mcc_queue_buffer(MCC_RECEIVE_LIST *list, MCC_RECEIVE_BUFFER * r_buffer)
 MCC_RECEIVE_LIST * mcc_get_endpoint_list(MCC_ENDPOINT endpoint)
 {
 	int i=0;
+	MCC_DCACHE_INVALIDATE_MLINES(&bookeeping_data->endpoint_table[0], MCC_ATTR_MAX_RECEIVE_ENDPOINTS * sizeof(MCC_ENDPOINT_MAP_ITEM));
 	for(i = 0; i<MCC_ATTR_MAX_RECEIVE_ENDPOINTS; i++) {
 
 		if(ENDPOINTS_EQUAL(bookeeping_data->endpoint_table[i].endpoint, endpoint))
@@ -215,19 +228,23 @@ MCC_RECEIVE_LIST * mcc_get_endpoint_list(MCC_ENDPOINT endpoint)
  */
 int mcc_queue_signal(MCC_CORE core, MCC_SIGNAL signal)
 {
-
+	MCC_DCACHE_INVALIDATE_LINE((pointer)&bookeeping_data->signal_queue_head[core]);
+	MCC_DCACHE_INVALIDATE_LINE((pointer)&bookeeping_data->signal_queue_tail[core]);
 	int tail = bookeeping_data->signal_queue_tail[core];
 	int new_tail = tail == (MCC_MAX_OUTSTANDING_SIGNALS-1) ? 0 : tail+1;
 
 	if(MCC_SIGNAL_QUEUE_FULL(core))
 		return MCC_ERR_NOMEM;
 
+	MCC_DCACHE_INVALIDATE_MLINES((pointer)&bookeeping_data->signals_received[core][tail], 2*sizeof(MCC_SIGNAL)); //"2*" must be removed once bookkeeping struct members are aligned to cache line size
 	bookeeping_data->signals_received[core][tail].type = signal.type;
 	bookeeping_data->signals_received[core][tail].destination.core = signal.destination.core;
 	bookeeping_data->signals_received[core][tail].destination.node = signal.destination.node;
 	bookeeping_data->signals_received[core][tail].destination.port = signal.destination.port;
 
 	bookeeping_data->signal_queue_tail[core] = new_tail;
+	MCC_DCACHE_FLUSH_LINE((pointer)&bookeeping_data->signal_queue_tail[core]);
+	MCC_DCACHE_FLUSH_MLINES((pointer)&bookeeping_data->signals_received[core][tail], 2*sizeof(MCC_SIGNAL)); //"2*" must be removed once bookkeeping struct members are aligned to cache line size
 
 	return MCC_SUCCESS;
 }
@@ -243,17 +260,21 @@ int mcc_queue_signal(MCC_CORE core, MCC_SIGNAL signal)
  */
 int mcc_dequeue_signal(MCC_CORE core, MCC_SIGNAL *signal)
 {
+	MCC_DCACHE_INVALIDATE_LINE((pointer)&bookeeping_data->signal_queue_head[core]);
+	MCC_DCACHE_INVALIDATE_LINE((pointer)&bookeeping_data->signal_queue_tail[core]);
 	int head = bookeeping_data->signal_queue_head[core];
 
 	if(MCC_SIGNAL_QUEUE_EMPTY(core))
 		return 0;
 
+	MCC_DCACHE_INVALIDATE_MLINES((pointer)&bookeeping_data->signals_received[core][head], 2*sizeof(MCC_SIGNAL)); //"2*" must be removed once bookkeeping struct members are aligned to cache line size
 	signal->type = bookeeping_data->signals_received[core][head].type;
 	signal->destination.core = bookeeping_data->signals_received[core][head].destination.core;
 	signal->destination.node = bookeeping_data->signals_received[core][head].destination.node;
 	signal->destination.port = bookeeping_data->signals_received[core][head].destination.port;
 
 	bookeeping_data->signal_queue_head[core] = head == (MCC_MAX_OUTSTANDING_SIGNALS-1) ? 0 : head+1;
+	MCC_DCACHE_FLUSH_LINE((pointer)&bookeeping_data->signal_queue_head[core]);
 
 	return 1;
 }

@@ -75,6 +75,7 @@ int mcc_initialize(MCC_NODE node)
     	return return_value;
 
     /* Initialize the bookeeping structure */
+    MCC_DCACHE_INVALIDATE_MLINES(bookeeping_data, sizeof(MCC_BOOKEEPING_STRUCT));
     if(strcmp(bookeeping_data->init_string, init_string) != 0) {
 
     	/* Zero it all - no guarantee Linux or uboot didnt touch it before it was reserved */
@@ -110,6 +111,7 @@ int mcc_initialize(MCC_NODE node)
     		bookeeping_data->endpoint_table[i].endpoint.port = MCC_RESERVED_PORT_NUMBER;
     	}
     }
+    MCC_DCACHE_FLUSH_MLINES(bookeeping_data, sizeof(MCC_BOOKEEPING_STRUCT));
     return return_value;
 }
 
@@ -135,6 +137,7 @@ int mcc_destroy(MCC_NODE node)
     	return return_value;
 
     /* All endpoints of the particular node have to be removed from the endpoint table */
+    MCC_DCACHE_INVALIDATE_MLINES(&bookeeping_data->endpoint_table[0], MCC_ATTR_MAX_RECEIVE_ENDPOINTS * sizeof(MCC_ENDPOINT_MAP_ITEM));
     for(i = 0; i < MCC_ATTR_MAX_RECEIVE_ENDPOINTS; i++) {
         if (bookeeping_data->endpoint_table[i].endpoint.node == node) {
             /* Remove the endpoint from the table */
@@ -389,6 +392,7 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
 #if (MCC_OS_USED == MCC_MQX)
     		_lwevent_wait_ticks(&lwevent_buffer_queued[endpoint->core], 1<<endpoint->port, TRUE, 0);
 #endif
+    	    MCC_DCACHE_INVALIDATE_LINE((pointer)list);
     	}
     	/* timeout_us > 0 */
     	else {
@@ -400,6 +404,7 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
         	_time_to_ticks(&time, &tick_time);
         	_lwevent_wait_until(&lwevent_buffer_queued[endpoint->core], 1<<endpoint->port, TRUE, &tick_time);
 #endif
+            MCC_DCACHE_INVALIDATE_LINE((pointer)list);
     	}
     }
 
@@ -490,6 +495,7 @@ int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_
 #if (MCC_OS_USED == MCC_MQX)
     		_lwevent_wait_ticks(&lwevent_buffer_queued[endpoint->core], 1<<endpoint->port, TRUE, 0);
 #endif
+    	    MCC_DCACHE_INVALIDATE_LINE((pointer)list);
     	}
     	/* timeout_us > 0 */
     	else {
@@ -501,6 +507,7 @@ int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_
         	_time_to_ticks(&time, &tick_time);
         	_lwevent_wait_until(&lwevent_buffer_queued[endpoint->core], 1<<endpoint->port, TRUE, &tick_time);
 #endif
+            MCC_DCACHE_INVALIDATE_LINE((pointer)list);
     	}
     }
 

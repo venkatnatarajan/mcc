@@ -35,6 +35,16 @@
 #include <bsp.h>
 #include <lwevent.h>
 #include "core_mutex.h"
+#include "vybrid.h"
+
+#define MCC_DCACHE_ENABLE(n)               _DCACHE_ENABLE(n)              
+#define MCC_DCACHE_DISABLE()               _DCACHE_DISABLE()              
+#define MCC_DCACHE_FLUSH()                 _DCACHE_FLUSH()                
+#define MCC_DCACHE_FLUSH_LINE(p)           _DCACHE_FLUSH_LINE(p)          
+#define MCC_DCACHE_FLUSH_MLINES(p, m)      _DCACHE_FLUSH_MLINES(p, m)     
+#define MCC_DCACHE_INVALIDATE()            _DCACHE_INVALIDATE()           
+#define MCC_DCACHE_INVALIDATE_LINE(p)      _DCACHE_INVALIDATE_LINE(p)     
+#define MCC_DCACHE_INVALIDATE_MLINES(p, m) _DCACHE_INVALIDATE_MLINES(p, m)
 
 /* Semaphore-related functions */
 int mcc_init_semaphore(unsigned int);

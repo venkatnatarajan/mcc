@@ -157,11 +157,6 @@ void responder_task(uint_32 node_num)
     /* create core mutex used in the app. for accessing the serial console */
     coremutex_app_ptr = _core_mutex_create( 0, 2, MQX_TASK_QUEUE_FIFO );
 
-#if PSP_MQX_CPU_IS_VYBRID_M4
-    /* Disable data cache globally in case of Vybrid M4 core - it is not possible to disable cache for an SRAM region, just globally */
-    _DCACHE_DISABLE();
-#endif /* PSP_MQX_CPU_IS_VYBRID_M4 */
-
     msg.DATA = 1;
     bookeeping_data = (MCC_BOOKEEPING_STRUCT *)MCC_BASE_ADDRESS;
     ret_value = mcc_initialize(node_num);
