@@ -32,6 +32,7 @@
 #define MCC_SET_RECEIVE_ENDPOINT					_IOW('M', 3, MCC_ENDPOINT)
 #define MCC_SET_SEND_ENDPOINT						_IOW('M', 4, MCC_ENDPOINT)
 #define MCC_SET_TIMEOUT							_IOW('M', 5, unsigned int)
+#define MCC_GET_INFO							_IOR('M', 6, MCC_INFO_STRUCT)
 
 /* sets the load adress and subsequent writes will be to load data there */
 struct mqx_boot_info_struct {

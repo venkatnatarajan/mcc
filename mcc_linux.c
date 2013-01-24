@@ -324,6 +324,7 @@ static long mcc_ioctl(struct file *f, unsigned cmd, unsigned long arg)
 {
 	struct mcc_private_data *priv_p = f->private_data;
 	void __user *buf = (void __user *)arg;
+	struct mcc_info_struct *info_p = (struct mcc_info_struct *)buf;
 	MCC_ENDPOINT endpoint;
 	MCC_ENDPOINT *endpoint_p;
 
@@ -393,6 +394,11 @@ static long mcc_ioctl(struct file *f, unsigned cmd, unsigned long arg)
 
 	case MCC_SET_TIMEOUT:
 		if (copy_from_user(&priv_p->timeout_us, buf, sizeof(priv_p->timeout_us)))
+			return -EFAULT;
+		break;
+
+	case MCC_GET_INFO:
+		if (copy_to_user(&info_p->version_string, &bookeeping_data->version_string, sizeof(info_p->version_string)))
 			return -EFAULT;
 		break;
 
