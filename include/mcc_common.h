@@ -94,7 +94,7 @@ typedef struct mcc_receive_list MCC_RECEIVE_LIST;
  */
 #define BUFFER_QUEUED (0)
 #define BUFFER_FREED  (1)
-typedef unsigned char MCC_SIGNAL_TYPE;
+typedef unsigned int MCC_SIGNAL_TYPE;
 #if defined(__IAR_SYSTEMS_ICC__)
 __packed
 #endif

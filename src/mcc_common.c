@@ -236,7 +236,7 @@ int mcc_queue_signal(MCC_CORE core, MCC_SIGNAL signal)
 	if(MCC_SIGNAL_QUEUE_FULL(core))
 		return MCC_ERR_NOMEM;
 
-	MCC_DCACHE_INVALIDATE_MLINES((pointer)&bookeeping_data->signals_received[core][tail], 2*sizeof(MCC_SIGNAL)); //"2*" must be removed once bookkeeping struct members are aligned to cache line size
+	MCC_DCACHE_INVALIDATE_MLINES((pointer)&bookeeping_data->signals_received[core][tail], sizeof(MCC_SIGNAL));
 	bookeeping_data->signals_received[core][tail].type = signal.type;
 	bookeeping_data->signals_received[core][tail].destination.core = signal.destination.core;
 	bookeeping_data->signals_received[core][tail].destination.node = signal.destination.node;
@@ -244,7 +244,7 @@ int mcc_queue_signal(MCC_CORE core, MCC_SIGNAL signal)
 
 	bookeeping_data->signal_queue_tail[core] = new_tail;
 	MCC_DCACHE_FLUSH_LINE((pointer)&bookeeping_data->signal_queue_tail[core]);
-	MCC_DCACHE_FLUSH_MLINES((pointer)&bookeeping_data->signals_received[core][tail], 2*sizeof(MCC_SIGNAL)); //"2*" must be removed once bookkeeping struct members are aligned to cache line size
+	MCC_DCACHE_FLUSH_MLINES((pointer)&bookeeping_data->signals_received[core][tail], sizeof(MCC_SIGNAL));
 
 	return MCC_SUCCESS;
 }
@@ -267,7 +267,7 @@ int mcc_dequeue_signal(MCC_CORE core, MCC_SIGNAL *signal)
 	if(MCC_SIGNAL_QUEUE_EMPTY(core))
 		return 0;
 
-	MCC_DCACHE_INVALIDATE_MLINES((pointer)&bookeeping_data->signals_received[core][head], 2*sizeof(MCC_SIGNAL)); //"2*" must be removed once bookkeeping struct members are aligned to cache line size
+	MCC_DCACHE_INVALIDATE_MLINES((pointer)&bookeeping_data->signals_received[core][head], sizeof(MCC_SIGNAL));
 	signal->type = bookeeping_data->signals_received[core][head].type;
 	signal->destination.core = bookeeping_data->signals_received[core][head].destination.core;
 	signal->destination.node = bookeeping_data->signals_received[core][head].destination.node;
