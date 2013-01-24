@@ -26,6 +26,17 @@
 #define SHARED_IRAM_START (MVF_IRAM_BASE_ADDR + 0x00040000)
 #define SHARED_IRAM_SIZE (64*1024)
 
+/* sets the load adress and subsequent writes will be to load data there */
+struct mqx_boot_info_struct {
+	unsigned int phys_load_addr;
+	unsigned int phys_start_addr;
+};
+
+#define MCC_READ_MODE_UNDEFINED (0)
+#define MCC_READ_MODE_COPY (1)
+#define MCC_READ_MODE_NOCOPY (2)
+typedef unsigned int MCC_READ_MODE;
+
 // ioctls
 #define MCC_CREATE_ENDPOINT						_IOW('M', 1, MCC_ENDPOINT)
 #define MCC_DESTROY_ENDPOINT						_IOW('M', 2, MCC_ENDPOINT)
@@ -33,15 +44,10 @@
 #define MCC_SET_SEND_ENDPOINT						_IOW('M', 4, MCC_ENDPOINT)
 #define MCC_SET_TIMEOUT							_IOW('M', 5, unsigned int)
 #define MCC_GET_INFO							_IOR('M', 6, MCC_INFO_STRUCT)
-
-/* sets the load adress and subsequent writes will be to load data there */
-struct mqx_boot_info_struct {
-	unsigned int phys_load_addr;
-	unsigned int phys_start_addr;
-};
-
-#define MCC_SET_MODE_LOAD_MQX_IMAGE					_IOW('M', 5, struct mqx_boot_info_struct)
-#define MCC_BOOT_MQX_IMAGE						_IO('M', 6)
+#define MCC_SET_READ_MODE						_IOW('M', 7, MCC_READ_MODE)
+#define MCC_SET_MODE_LOAD_MQX_IMAGE					_IOW('M', 8, struct mqx_boot_info_struct)
+#define MCC_BOOT_MQX_IMAGE						_IO('M', 9)
+#define MCC_FREE_RECEIVE_BUFFER						_IOW('M', 10, unsigned int)
 
 // for interrupts
 #define MAX_MVF_CPU_TO_CPU_INTERRUPTS (4)

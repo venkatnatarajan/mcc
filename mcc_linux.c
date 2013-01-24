@@ -24,7 +24,6 @@
 #include <linux/device.h>
 #include <linux/cdev.h>
 
-// added by ed
 #include <linux/slab.h>
 #include <mach/hardware.h>
 #include <linux/string.h>
@@ -34,6 +33,7 @@
 #include <linux/interrupt.h>
 #include <linux/sched.h>
 #include <linux/time.h>
+#include <linux/mm.h>
 
 // common to MQX and Linux
 // TODO the order of these should not matter
@@ -60,6 +60,7 @@ struct mcc_private_data
 	struct mqx_boot_info_struct mqx_boot_info;
 	char *virt_load_addr;
 	unsigned int timeout_us;
+	MCC_READ_MODE read_mode;
 };
 
 static dev_t first;
@@ -166,6 +167,29 @@ static int mcc_close(struct inode *i, struct file *f)
 	return MCC_SUCCESS;
 }
 
+static int mcc_free_buffer(MCC_RECEIVE_BUFFER * buffer)
+{
+	if(mcc_sema4_grab(MCC_SEMAPHORE_NUMBER))
+		return -EBUSY;
+	// free the buffer
+	mcc_queue_buffer(&bookeeping_data->free_list, buffer);
+
+	// signal all other cores a buffer has been made available
+	if(signal_freed())
+	{
+		mcc_sema4_release(MCC_SEMAPHORE_NUMBER);
+		return -ENOMEM;
+	}
+
+	mcc_sema4_release(MCC_SEMAPHORE_NUMBER);
+
+	// wake yourself up again in case anyone here waiting for free buf
+	//wake_up_interruptible(&wait_queue);
+
+	return 0;
+}
+
+
 static ssize_t mcc_read(struct file *f, char __user *buf, size_t len, loff_t *off)
 {
 	struct mcc_private_data *priv_p = f->private_data;
@@ -173,6 +197,7 @@ static ssize_t mcc_read(struct file *f, char __user *buf, size_t len, loff_t *of
 	MCC_RECEIVE_LIST * recv_list;
 	int copy_len = 0;
 	int retval = 0;
+	unsigned int offset = 0;
 
 	// get my receive list
 	if(mcc_sema4_grab(MCC_SEMAPHORE_NUMBER))
@@ -211,29 +236,30 @@ static ssize_t mcc_read(struct file *f, char __user *buf, size_t len, loff_t *of
 
 	if(buffer)
 	{
-		// dont copy more than will fit
-		copy_len = buffer->data_len < len ? buffer->data_len : len;
-		
-		// load the data
-		if (copy_to_user(buf, &buffer->data, copy_len))
-			return -EFAULT;
-		
-		if(mcc_sema4_grab(MCC_SEMAPHORE_NUMBER))
-			return -EBUSY;
-		// free the buffer
-		mcc_queue_buffer(&bookeeping_data->free_list, buffer);
-
-		// signal all other cores a buffer has been made available
-		if(signal_freed())
+		if(priv_p->read_mode == MCC_READ_MODE_COPY)
 		{
-			mcc_sema4_release(MCC_SEMAPHORE_NUMBER);
-			return -ENOMEM;
+			// dont copy more than will fit
+			copy_len = buffer->data_len < len ? buffer->data_len : len;
+		
+			// load the data
+			if (copy_to_user(buf, &buffer->data, copy_len))
+				return -EFAULT;
+
+			retval = mcc_free_buffer(buffer);
+			if(retval)
+				return retval;
 		}
+		else
+		{
+			// nocopy reads return the offset within the bookeeping structure
+			// of the buffer. User space will add that to mmap-ed address
+			copy_len = buffer->data_len;
 
-		mcc_sema4_release(MCC_SEMAPHORE_NUMBER);
+			offset = (unsigned int)buffer - (unsigned int)bookeeping_data;
 
-		// wake yourself up again in case anyone here waiting for free buf
-		//wake_up_interruptible(&wait_queue);
+			if(copy_to_user(buf, &offset, sizeof(offset)))
+				return -EFAULT;
+		}
 	}
 
 	return copy_len;
@@ -327,6 +353,7 @@ static long mcc_ioctl(struct file *f, unsigned cmd, unsigned long arg)
 	struct mcc_info_struct *info_p = (struct mcc_info_struct *)buf;
 	MCC_ENDPOINT endpoint;
 	MCC_ENDPOINT *endpoint_p;
+	unsigned int offset;
 
 	int retval = 0;
 
@@ -402,12 +429,45 @@ static long mcc_ioctl(struct file *f, unsigned cmd, unsigned long arg)
 			return -EFAULT;
 		break;
 
+	case MCC_SET_READ_MODE:
+		if (copy_from_user(&priv_p->read_mode, buf, sizeof(priv_p->read_mode)))
+			return -EFAULT;
+		if((priv_p->read_mode != MCC_READ_MODE_COPY) && (priv_p->read_mode != MCC_READ_MODE_NOCOPY))
+			return -EINVAL;
+		break;
+
+	case MCC_FREE_RECEIVE_BUFFER:
+		if (copy_from_user(&offset, buf, sizeof(offset)))
+			return -EFAULT;
+		offset += (unsigned int) bookeeping_data;
+
+		retval = mcc_free_buffer((MCC_RECEIVE_BUFFER *) offset);
+		break;
+
 	default:
 		printk(KERN_ERR "Unknown ioctl command (0x%08X)\n", cmd);
 		retval = -ENOIOCTLCMD;
 	}
 
 	return retval;
+}
+
+static int mcc_mmap(struct file *filp, struct vm_area_struct *vma)
+{
+	int ret;
+
+	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+
+	ret = remap_pfn_range(vma,
+		vma->vm_start,
+		VIRT_TO_MQX(bookeeping_data) >> PAGE_SHIFT,
+		sizeof(MCC_BOOKEEPING_STRUCT),
+		vma->vm_page_prot);
+
+	if (ret != 0)
+		return -EAGAIN;
+
+	return 0;
 }
 
 static struct file_operations mcc_fops =
@@ -418,6 +478,7 @@ static struct file_operations mcc_fops =
 	.read = mcc_read,
 	.write = mcc_write,
 	.unlocked_ioctl = mcc_ioctl,
+	.mmap = mcc_mmap,
 };
  
 static int __init mcc_init(void) /* Constructor */
