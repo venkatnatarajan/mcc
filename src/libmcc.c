@@ -287,3 +287,16 @@ int mcc_free_buffer(MCC_ENDPOINT *endpoint, void *buffer)
 	// TOOO (see no copy)
     return MCC_ERR_INVAL;
 }
+/*!
+ * \brief This function returns info structure.
+ *
+ * Returns implementation specific information.
+ *
+ * \param[in] node Node number.
+ * \param[out] info_data Pointer to the MCC info structure.
+ */
+int mcc_get_info(MCC_NODE node, MCC_INFO_STRUCT* info_data)
+{
+	return ioctl(fd, MCC_GET_INFO, info_data);
+}
+
