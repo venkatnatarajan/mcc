@@ -19,24 +19,29 @@
 #include "libmcc.h"
 #include <sys/ioctl.h>
 #include <errno.h>
+#include <stddef.h>
 
+#include <linux/mcc_common.h>
 #include <linux/mcc_linux.h>
 
 #include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/mman.h>
 
 #define ENDPOINTS_EQUAL(e1, e2) ((e1.core == e2.core) && (e1.node == e2.node) && (e1.port == e2.port))
 #define ENDPOINT_IN_USE(e) (e.port != MCC_RESERVED_PORT_NUMBER)
 
 // local, private data
 static int fd = -1;	// the file descriptor used throughout
+static unsigned int bookeeping_p;
 
 static MCC_CORE this_core = MCC_CORE_NUMBER;
 static MCC_NODE this_node;
 static MCC_ENDPOINT endpoints[MCC_ATTR_MAX_RECEIVE_ENDPOINTS];
 static MCC_ENDPOINT send_endpoint, recv_endpoint;
 static unsigned int current_timeout_us = 0xFFFFFFFF; //0
+static MCC_READ_MODE current_read_mode = MCC_READ_MODE_UNDEFINED;
 
 /*!
  * \brief This function initializes the Multi Core Communication.
@@ -58,6 +63,10 @@ int mcc_initialize(MCC_NODE node)
 	recv_endpoint.port = MCC_RESERVED_PORT_NUMBER;
 
 	fd = open("/dev/mcc", O_RDWR);
+
+	bookeeping_p = (unsigned int) mmap(0, sizeof(MCC_BOOKEEPING_STRUCT), PROT_READ, MAP_SHARED, fd, 0);
+	if(bookeeping_p < 0)
+		return MCC_ERR_DEV;
 
     return fd < 0 ? MCC_ERR_DEV : MCC_SUCCESS;
 }
@@ -144,28 +153,19 @@ int mcc_destroy_endpoint(MCC_ENDPOINT *endpoint)
     return MCC_SUCCESS;
 }
 
-/*!
- * \brief This function sends a message.
- *
- * The message is copied into the MCC buffer and the other core is signaled.
- *
- * \param[in] endpoint Pointer to the endpoint structure.
- * \param[in] msg Pointer to the meassge to be sent.
- * \param[in] msg_size Size of the meassge to be sent.
- * \param[in] timeout_us Timeout in microseconds. 0 = non-blocking call, 0xffffffff = blocking call .
- *
- * TODO handle values besides 0 or 0xffffffff
- */
-int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned int timeout_us)
+/*
+* routine to set modes - common tasks to send, recv copy and nocopy modes
+*/
+int set_io_modes(int set_endpoint_command, MCC_ENDPOINT *current_endpoint, MCC_ENDPOINT *new_endpoint, unsigned int timeout_us)
 {
 	int new_block_mode = timeout_us == 0 ? O_NONBLOCK : 0;
 
-	// set the endpoint, if not already
-	if(!ENDPOINTS_EQUAL(send_endpoint, (*endpoint)))
+	// set the endpoint if not already
+	if(!ENDPOINTS_EQUAL((*current_endpoint), (*new_endpoint)))
 	{
-		if(ioctl(fd, MCC_SET_SEND_ENDPOINT, endpoint))
+		if(ioctl(fd, set_endpoint_command, new_endpoint))
 			return MCC_ERR_ENDPOINT;
-		send_endpoint = *endpoint;
+		*current_endpoint = *new_endpoint;
 	}
 
 	//check if timeout changed
@@ -182,14 +182,36 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
 		current_timeout_us = timeout_us;
 	}
 
+	return 0;
+}
+
+/*!
+ * \brief This function sends a message.
+ *
+ * The message is copied into the MCC buffer and the other core is signaled.
+ *
+ * \param[in] endpoint Pointer to the endpoint structure.
+ * \param[in] msg Pointer to the meassge to be sent.
+ * \param[in] msg_size Size of the meassge to be sent.
+ * \param[in] timeout_us Timeout in microseconds. 0 = non-blocking call, 0xffffffff = blocking call .
+ *
+ * TODO handle values besides 0 or 0xffffffff
+ */
+int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned int timeout_us)
+{
+	int retval = set_io_modes(MCC_SET_SEND_ENDPOINT, &send_endpoint, endpoint, timeout_us);
+	if(retval)
+		return retval;
+
 	// do the write
 	errno = 0;
-    write(fd, msg, msg_size);
-    if(errno)
-    	perror("mcc_send");
+	write(fd, msg, msg_size);
+	if(errno)
+		perror("mcc_send");
 
-    return errno == 0 ? MCC_SUCCESS : MCC_ERR_INVAL;
+	return errno == 0 ? MCC_SUCCESS : MCC_ERR_INVAL;
 }
+
 
 /*!
  * \brief This function receives a message. The data is copied into the user-app. buffer.
@@ -206,28 +228,17 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
  */
 int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size, MCC_MEM_SIZE *recv_size, unsigned int timeout_us)
 {
-	int new_block_mode = timeout_us == 0 ? O_NONBLOCK : 0;
+	int retval = set_io_modes(MCC_SET_RECEIVE_ENDPOINT, &recv_endpoint, endpoint, timeout_us);
+	if(retval)
+		return retval;
 
-	// set the endpoint if not already
-	if(!ENDPOINTS_EQUAL(recv_endpoint, (*endpoint)))
+	//check copy or no copy mode
+	MCC_READ_MODE read_mode = MCC_READ_MODE_COPY;
+	if(read_mode != current_read_mode)
 	{
-		if(ioctl(fd, MCC_SET_RECEIVE_ENDPOINT, endpoint))
-			return MCC_ERR_ENDPOINT;
-		recv_endpoint = *endpoint;
-	}
-
-	//check if timeout changed
-	if(timeout_us != current_timeout_us)
-	{
-		if(ioctl(fd, MCC_SET_TIMEOUT, &timeout_us))
+		if(ioctl(fd, MCC_SET_READ_MODE, &read_mode))
 			return MCC_ERR_INVAL;
-
-		if((timeout_us == 0) || (current_timeout_us == 0))
-		{
-			if(fcntl(fd, F_SETFL, new_block_mode))
-				return MCC_ERR_INVAL;
-		}
-		current_timeout_us = timeout_us;
+		current_read_mode = read_mode;
 	}
 
 	errno = 0;
@@ -253,8 +264,31 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
  */
 int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_size, unsigned int timeout_us)
 {
-	// TOOO this is complicated on Linux?
-    return MCC_ERR_INVAL;
+	unsigned int offset;
+
+	int retval = set_io_modes(MCC_SET_RECEIVE_ENDPOINT, &recv_endpoint, endpoint, timeout_us);
+	if(retval)
+		return retval;
+
+	//check copy or no copy mode
+	MCC_READ_MODE read_mode = MCC_READ_MODE_NOCOPY;
+	if(read_mode != current_read_mode)
+	{
+		if(ioctl(fd, MCC_SET_READ_MODE, &read_mode))
+			return MCC_ERR_INVAL;
+		current_read_mode = read_mode;
+	}
+
+	errno = 0;
+	*recv_size = read(fd, &offset, 4);
+	if(errno) {
+		perror("mcc_recv_copy");
+		return MCC_ERR_INVAL;
+	}
+
+	// data pointer = bookeeping offset of the base of the buffer + offset into the data part of the buffer
+	*buffer_p = (void *)(offset + bookeeping_p + offsetof(MCC_RECEIVE_BUFFER, data));
+	return MCC_SUCCESS;
 }
 
 /*!
@@ -284,9 +318,12 @@ int mcc_msgs_available(MCC_ENDPOINT *endpoint, unsigned int *num_msgs)
  */
 int mcc_free_buffer(MCC_ENDPOINT *endpoint, void *buffer)
 {
-	// TOOO (see no copy)
-    return MCC_ERR_INVAL;
+	unsigned int offset = (unsigned int)buffer - (bookeeping_p + offsetof(MCC_RECEIVE_BUFFER, data));
+	if(ioctl(fd, MCC_FREE_RECEIVE_BUFFER, &offset))
+		return MCC_ERR_INVAL;
+	return MCC_SUCCESS;
 }
+
 /*!
  * \brief This function returns info structure.
  *
