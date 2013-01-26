@@ -302,8 +302,18 @@ int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_
  */
 int mcc_msgs_available(MCC_ENDPOINT *endpoint, unsigned int *num_msgs)
 {
-	// TOOO this nneds corresponding ioctl?
-    return MCC_ERR_INVAL;
+	struct mcc_queue_info_struct q_info;
+
+	q_info.endpoint.core = endpoint->core;
+	q_info.endpoint.node = endpoint->node;
+	q_info.endpoint.port = endpoint->port;
+
+	if(ioctl(fd, MCC_GET_QUEUE_INFO, &q_info))
+		return MCC_ERR_INVAL;
+
+	*num_msgs = q_info.current_queue_length;
+
+	return MCC_SUCCESS;
 }
 
 /*!
