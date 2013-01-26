@@ -354,6 +354,10 @@ static long mcc_ioctl(struct file *f, unsigned cmd, unsigned long arg)
 	MCC_ENDPOINT endpoint;
 	MCC_ENDPOINT *endpoint_p;
 	unsigned int offset;
+	struct mcc_queue_info_struct q_info;
+	MCC_RECEIVE_LIST * r_list;
+	int count;
+
 
 	int retval = 0;
 
@@ -442,6 +446,40 @@ static long mcc_ioctl(struct file *f, unsigned cmd, unsigned long arg)
 		offset += (unsigned int) bookeeping_data;
 
 		retval = mcc_free_buffer((MCC_RECEIVE_BUFFER *) offset);
+		break;
+
+	case MCC_GET_QUEUE_INFO:
+		count = 0;
+
+		// get the endpoint from the user
+		if (copy_from_user(&q_info, buf, sizeof(q_info)))
+			return -EFAULT;
+
+		// grab the semaphore
+		if(mcc_sema4_grab(MCC_SEMAPHORE_NUMBER))
+			return -EBUSY;
+
+		// find the list
+		if(!(r_list = mcc_get_endpoint_list(q_info.endpoint)))
+		{
+			mcc_sema4_release(MCC_SEMAPHORE_NUMBER);
+			return -EINVAL;
+		}
+
+		// count the messages
+	        MCC_RECEIVE_BUFFER * r_buf = MQX_TO_VIRT(r_list->head);
+		while (r_buf) {
+			count++;
+			r_buf = MQX_TO_VIRT(r_buf->next);
+		}	
+
+		// release the semaphore
+		mcc_sema4_release(MCC_SEMAPHORE_NUMBER);
+
+		// load and return the structure
+		q_info.current_queue_length = count;
+		if (copy_to_user(buf, &q_info, sizeof(q_info)))
+			return -EFAULT;
 		break;
 
 	default:

@@ -32,6 +32,11 @@ struct mqx_boot_info_struct {
 	unsigned int phys_start_addr;
 };
 
+struct mcc_queue_info_struct {
+	MCC_ENDPOINT endpoint;
+	int current_queue_length;
+};
+
 #define MCC_READ_MODE_UNDEFINED (0)
 #define MCC_READ_MODE_COPY (1)
 #define MCC_READ_MODE_NOCOPY (2)
@@ -48,6 +53,7 @@ typedef unsigned int MCC_READ_MODE;
 #define MCC_SET_MODE_LOAD_MQX_IMAGE					_IOW('M', 8, struct mqx_boot_info_struct)
 #define MCC_BOOT_MQX_IMAGE						_IO('M', 9)
 #define MCC_FREE_RECEIVE_BUFFER						_IOW('M', 10, unsigned int)
+#define MCC_GET_QUEUE_INFO						_IOR('M', 11, struct mcc_queue_info_struct)
 
 // for interrupts
 #define MAX_MVF_CPU_TO_CPU_INTERRUPTS (4)
