@@ -18,8 +18,8 @@
 #ifndef __MCC_COMMON__
 #define __MCC_COMMON__
 
-#define MCC_INIT_STRING    "mccisrdy"
-#define MCC_VERSION_STRING "1.0"
+#define MCC_INIT_STRING    "mccisrd"
+#define MCC_VERSION_STRING "001.000"
 
 typedef unsigned int MCC_BOOLEAN;
 typedef unsigned int MCC_MEM_SIZE;
@@ -81,7 +81,7 @@ typedef struct mcc_receive_list MCC_RECEIVE_LIST;
  */
 #define BUFFER_QUEUED (0)
 #define BUFFER_FREED  (1)
-typedef unsigned char MCC_SIGNAL_TYPE;
+typedef unsigned int MCC_SIGNAL_TYPE;
 #if defined(__IAR_SYSTEMS_ICC__)
 __packed
 #endif

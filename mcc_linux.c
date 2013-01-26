@@ -356,6 +356,7 @@ static long mcc_ioctl(struct file *f, unsigned cmd, unsigned long arg)
 	unsigned int offset;
 	struct mcc_queue_info_struct q_info;
 	MCC_RECEIVE_LIST * r_list;
+	MCC_RECEIVE_BUFFER * r_buf;
 	int count;
 
 
@@ -467,7 +468,7 @@ static long mcc_ioctl(struct file *f, unsigned cmd, unsigned long arg)
 		}
 
 		// count the messages
-	        MCC_RECEIVE_BUFFER * r_buf = MQX_TO_VIRT(r_list->head);
+	        r_buf = MQX_TO_VIRT(r_list->head);
 		while (r_buf) {
 			count++;
 			r_buf = MQX_TO_VIRT(r_buf->next);
