@@ -79,7 +79,7 @@ int mcc_initialize(MCC_NODE node)
     if(strcmp(bookeeping_data->init_string, init_string) != 0) {
 
     	/* Zero it all - no guarantee Linux or uboot didnt touch it before it was reserved */
-    	_mem_zero((pointer) bookeeping_data, (_mem_size) sizeof(struct mcc_bookeeping_struct));
+    	_mem_zero((void*) bookeeping_data, (_mem_size) sizeof(struct mcc_bookeeping_struct));
 
     	/* Set init_string in case it has not been set yet by another core */
     	mcc_memcpy((void*)init_string, bookeeping_data->init_string, (unsigned int)sizeof(bookeeping_data->init_string));
@@ -263,6 +263,7 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
     }
 
     /* Dequeue the buffer from the free list */
+    MCC_DCACHE_INVALIDATE_LINE((void*)&bookeeping_data->free_list);
     buf = mcc_dequeue_buffer(&bookeeping_data->free_list);
 
     while(buf == null) {
@@ -278,6 +279,7 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
         	_lwevent_wait_ticks(&lwevent_buffer_freed[endpoint->core], 1, TRUE, 0);
         	_lwevent_clear(&lwevent_buffer_freed[endpoint->core], 1);
 #endif
+        	MCC_DCACHE_INVALIDATE_LINE((void*)&bookeeping_data->free_list);
         	mcc_get_semaphore();
         	buf = mcc_dequeue_buffer(&bookeeping_data->free_list);
         }
@@ -292,6 +294,7 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
         	_lwevent_wait_until(&lwevent_buffer_freed[endpoint->core], 1, TRUE, &tick_time);
         	_lwevent_clear(&lwevent_buffer_freed[endpoint->core], 1);
 #endif
+        	MCC_DCACHE_INVALIDATE_LINE((void*)&bookeeping_data->free_list);
         	mcc_get_semaphore();
         	buf = mcc_dequeue_buffer(&bookeeping_data->free_list);
 
@@ -310,7 +313,9 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
 
 	/* Copy the message into the MCC receive buffer */
     mcc_memcpy(msg, (void*)buf->data, (unsigned int)msg_size);
+    MCC_DCACHE_FLUSH_MLINES((void*)buf->data, msg_size);
     buf->data_len = msg_size;
+    MCC_DCACHE_FLUSH_LINE((void*)&buf->data_len);
 
     /* Semaphore-protected section start */
     return_value = mcc_get_semaphore();
@@ -392,7 +397,7 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
 #if (MCC_OS_USED == MCC_MQX)
     		_lwevent_wait_ticks(&lwevent_buffer_queued[endpoint->core], 1<<endpoint->port, TRUE, 0);
 #endif
-    	    MCC_DCACHE_INVALIDATE_LINE((pointer)list);
+    	    MCC_DCACHE_INVALIDATE_LINE((void*)list);
     	}
     	/* timeout_us > 0 */
     	else {
@@ -404,7 +409,7 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
         	_time_to_ticks(&time, &tick_time);
         	_lwevent_wait_until(&lwevent_buffer_queued[endpoint->core], 1<<endpoint->port, TRUE, &tick_time);
 #endif
-            MCC_DCACHE_INVALIDATE_LINE((pointer)list);
+            MCC_DCACHE_INVALIDATE_LINE((void*)list);
     	}
     }
 
@@ -417,7 +422,9 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
     }
 
     /* Copy the message from the MCC receive buffer into the user-app. buffer */
+    MCC_DCACHE_INVALIDATE_MLINES((void*)list->head->data, list->head->data_len);
     mcc_memcpy((void*)list->head->data, buffer, buffer_size);
+    MCC_DCACHE_INVALIDATE_LINE((void*)list->head->data_len);
     *recv_size = (MCC_MEM_SIZE)(list->head->data_len);
 
     /* Semaphore-protected section start */
@@ -429,6 +436,7 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
     buf = mcc_dequeue_buffer(list);
 
     /* Enqueue the buffer into the free list */
+    MCC_DCACHE_INVALIDATE_LINE((void*)&bookeeping_data->free_list);
     mcc_queue_buffer(&bookeeping_data->free_list, buf);
 
     /* Notify all cores (except of itself) via CPU-to-CPU interrupt that a buffer has been freed */
@@ -495,7 +503,7 @@ int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_
 #if (MCC_OS_USED == MCC_MQX)
     		_lwevent_wait_ticks(&lwevent_buffer_queued[endpoint->core], 1<<endpoint->port, TRUE, 0);
 #endif
-    	    MCC_DCACHE_INVALIDATE_LINE((pointer)list);
+    	    MCC_DCACHE_INVALIDATE_LINE((void*)list);
     	}
     	/* timeout_us > 0 */
     	else {
@@ -507,7 +515,7 @@ int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_
         	_time_to_ticks(&time, &tick_time);
         	_lwevent_wait_until(&lwevent_buffer_queued[endpoint->core], 1<<endpoint->port, TRUE, &tick_time);
 #endif
-            MCC_DCACHE_INVALIDATE_LINE((pointer)list);
+            MCC_DCACHE_INVALIDATE_LINE((void*)list);
     	}
     }
 
@@ -520,7 +528,9 @@ int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_
 	}
 
     /* Get the message pointer from the head of the receive buffer list */
+    MCC_DCACHE_INVALIDATE_MLINES((void*)list->head->data, list->head->data_len);
     buffer_p = (void**)&list->head->data;
+    MCC_DCACHE_INVALIDATE_LINE((void*)list->head->data_len);
     *recv_size = (MCC_MEM_SIZE)(list->head->data_len);
 
     return return_value;
@@ -605,6 +615,7 @@ int mcc_free_buffer(MCC_ENDPOINT *endpoint, void *buffer)
     }
 
     /* Enqueue the buffer into the free list */
+    MCC_DCACHE_INVALIDATE_LINE((void*)&bookeeping_data->free_list);
     mcc_queue_buffer(&bookeeping_data->free_list, buf);
 
     /* Notify all cores (except of itself) via CPU-to-CPU interrupt that a buffer has been freed */
