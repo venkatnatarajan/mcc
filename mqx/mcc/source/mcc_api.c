@@ -33,23 +33,25 @@
 #include "mcc_common.h"
 #include "mcc_api.h"
 
-#if (MCC_OS_USED == MCC_LINUX)
-#include "mcc_linux.h"
-#elif (MCC_OS_USED == MCC_MQX)
+#if (MCC_OS_USED == MCC_MQX)
 #include "mcc_mqx.h"
-extern LWEVENT_STRUCT lwevent_buffer_queued[MCC_NUM_CORES];
-extern LWEVENT_STRUCT lwevent_buffer_freed[MCC_NUM_CORES];
+extern LWEVENT_STRUCT lwevent_buffer_queued[MCC_MQX_LWEVENT_COMPONENTS_COUNT];
+extern LWEVENT_STRUCT lwevent_buffer_freed;
 #endif
 
 const char * const init_string    = MCC_INIT_STRING;
 const char * const version_string = MCC_VERSION_STRING;
 
 /*!
- * \brief This function initializes the Multi Core Communication.
+ * \brief This function initializes the Multi Core Communication subsystem for a given node.
  *
- * XXX
+ * This should only be called once per node (once in MQX, once per process in Linux).
  *
- * \param[in] node Node number.
+ * \param[in] node Node number that will be used in endpoints created by this process.
+ *
+ * \return MCC_SUCCESS
+ * \return MCC_ERR_SEMAPHORE (semaphore handling error)
+ * \return MCC_ERR_INT (Interrupt registration error)
  */
 int mcc_initialize(MCC_NODE node)
 {
@@ -58,10 +60,10 @@ int mcc_initialize(MCC_NODE node)
     MCC_SIGNAL tmp_signals_received = {(MCC_SIGNAL_TYPE)0, (MCC_CORE)0, (MCC_NODE)0, (MCC_PORT)0};
 
 #if (MCC_OS_USED == MCC_MQX)
-    //TODO move to ??? (where?)
-    _lwevent_create(&lwevent_buffer_queued[MCC_CORE_NUMBER],0);
-    _lwevent_create(&lwevent_buffer_freed[MCC_CORE_NUMBER],0);
-    //_DCACHE_DISABLE(); //TODO should be in the OS-specific initialization
+    for(i=0; i<MCC_MQX_LWEVENT_COMPONENTS_COUNT; i++) {
+        _lwevent_create(&lwevent_buffer_queued[i],0);
+    }
+    _lwevent_create(&lwevent_buffer_freed,0);
 #endif
     /* Initialize synchronization module */
     return_value = mcc_init_semaphore(MCC_SEMAPHORE_NUMBER);
@@ -116,19 +118,24 @@ int mcc_initialize(MCC_NODE node)
 }
 
 /*!
- * \brief This function de-initializes the Multi Core Communication.
+ * \brief This function de-initializes the Multi Core Communication subsystem for a given node.
  *
- * Clear local data, clean semaphore and share memory resources ......
+ * Frees all resources of the node. Deletes all endpoints and frees any buffers that may have been queued there.
  *
  * \param[in] node Node number to be deinitialized.
+ *
+ * \return MCC_SUCCESS
+ * \return MCC_ERR_SEMAPHORE (semaphore handling error)
  */
 int mcc_destroy(MCC_NODE node)
 {
     int i = 0, return_value;
 
 #if (MCC_OS_USED == MCC_MQX)
-    _lwevent_destroy(&lwevent_buffer_queued[MCC_CORE_NUMBER]);
-    _lwevent_destroy(&lwevent_buffer_freed[MCC_CORE_NUMBER]);
+    for(i=0; i<MCC_MQX_LWEVENT_COMPONENTS_COUNT; i++) {
+    	_lwevent_destroy(&lwevent_buffer_queued[i]);
+    }
+    _lwevent_destroy(&lwevent_buffer_freed);
 #endif
 
     /* Semaphore-protected section start */
@@ -161,9 +168,16 @@ int mcc_destroy(MCC_NODE node)
  * \brief This function creates an endpoint.
  *
  * Create an endpoint on the local node with the specified port number.
+ * The core and node provided in endpoint must match the caller’s core and
+ * node and the port argument must match the endpoint port.
  *
- * \param[out] endpoint Pointer to the endpoint structure.
+ * \param[out] endpoint Pointer to the endpoint triplet to be created.
  * \param[in] port Port number.
+ *
+ * \return MCC_SUCCESS
+ * \return MCC_ERR_NOMEM (maximum number of endpoints exceeded)
+ * \return MCC_ERR_ENDPOINT (invalid value for core, node, or port)
+ * \return MCC_ERR_SEMAPHORE (semaphore handling error)
  */
 int mcc_create_endpoint(MCC_ENDPOINT *endpoint, MCC_PORT port)
 {
@@ -195,9 +209,13 @@ int mcc_create_endpoint(MCC_ENDPOINT *endpoint, MCC_PORT port)
 /*!
  * \brief This function destroys an endpoint.
  *
- * Destroy an endpoint on the local node.
+ * Destroy an endpoint on the local node and frees any buffers that may be queued.
  *
- * \param[in] endpoint Pointer to the endpoint structure.
+ * \param[in] endpoint Pointer to the endpoint triplet to be deleted.
+ *
+ * \return MCC_SUCCESS
+ * \return MCC_ERR_ENDPOINT (the endpoint doesn’t exist)
+ * \return MCC_ERR_SEMAPHORE (semaphore handling error)
  */
 int mcc_destroy_endpoint(MCC_ENDPOINT *endpoint)
 {
@@ -222,18 +240,25 @@ int mcc_destroy_endpoint(MCC_ENDPOINT *endpoint)
 }
 
 /*!
- * \brief This function sends a message.
+ * \brief This function sends a message to an endpoint.
  *
- * The message is copied into the MCC buffer and the other core is signaled.
+ * The message is copied into the MCC buffer and the destination core is signaled.
  *
- * \param[in] endpoint Pointer to the endpoint structure.
+ * \param[in] endpoint Pointer to the receiving endpoint to send to.
  * \param[in] msg Pointer to the message to be sent.
  * \param[in] msg_size Size of the message to be sent in bytes.
- * \param[in] timeout_us Timeout in microseconds. 0 = non-blocking call, 0xffffffff = blocking call .
+ * \param[in] timeout_us Timeout, in microseconds, to wait for a free buffer. A value of 0 means don’t wait (non-blocking call), 0xffffffff means wait forever (blocking call).
+ *
+ * \return MCC_SUCCESS
+ * \return MCC_ERR_ENDPOINT (the endpoint does not exist)
+ * \return MCC_ERR_SEMAPHORE (semaphore handling error)
+ * \return MCC_ERR_INVAL (an invalid address has been supplied for msg or the msg_size exceeds the size of a data buffer)
+ * \return MCC_ERR_TIMEOUT (timeout exceeded before a buffer became available)
+ * \return MCC_ERR_NOMEM (no free buffer available and timeout_us set to 0)
  */
 int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned int timeout_us)
 {
-	int return_value;
+	int return_value, end_time_set_flag = 0;
     MCC_RECEIVE_LIST *list;
     MCC_RECEIVE_BUFFER * buf;
     MCC_SIGNAL affiliated_signal;
@@ -263,7 +288,7 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
     }
 
     /* Dequeue the buffer from the free list */
-    MCC_DCACHE_INVALIDATE_LINE((void*)&bookeeping_data->free_list);
+    MCC_DCACHE_INVALIDATE_MLINES((void*)&bookeeping_data->free_list, sizeof(MCC_RECEIVE_LIST*));
     buf = mcc_dequeue_buffer(&bookeeping_data->free_list);
 
     while(buf == null) {
@@ -273,37 +298,40 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
         if(timeout_us == 0) {
         	return MCC_ERR_NOMEM;
         }
-        /* Blocking call - wait forever */
+        /* Blocking calls: CPU-to-CPU ISR sets the event and thus resumes tasks waiting for a free MCC buffer.
+         * As the interrupt request is send to all cores when a buffer is freed it could happen that several
+         * tasks from different cores/nodes are waiting for a free buffer and all of them are notified that the buffer
+         * has been freed. This function has to check (after the wake up) that a buffer is really available and has not been already
+         * grabbed by another "competitor task" that has been faster. If so, it has to wait again for the next notification. */
+        /* wait forever */
         else if(timeout_us == 0xFFFFFFFF) {
 #if (MCC_OS_USED == MCC_MQX)
-        	_lwevent_wait_ticks(&lwevent_buffer_freed[endpoint->core], 1, TRUE, 0);
-        	_lwevent_clear(&lwevent_buffer_freed[endpoint->core], 1);
+        	_lwevent_wait_ticks(&lwevent_buffer_freed, 1, TRUE, 0);
+        	_lwevent_clear(&lwevent_buffer_freed, 1);
 #endif
-        	MCC_DCACHE_INVALIDATE_LINE((void*)&bookeeping_data->free_list);
-        	mcc_get_semaphore();
-        	buf = mcc_dequeue_buffer(&bookeeping_data->free_list);
         }
         /* timeout_us > 0 */
         else {
 #if (MCC_OS_USED == MCC_MQX)
-        	time_us_tmp = mcc_time_get_microseconds();
-        	time_us_tmp += timeout_us;
-        	time.SECONDS = time_us_tmp/1000000;
-        	time.MILLISECONDS = time_us_tmp*1000;
-        	_time_to_ticks(&time, &tick_time);
-        	_lwevent_wait_until(&lwevent_buffer_freed[endpoint->core], 1, TRUE, &tick_time);
-        	_lwevent_clear(&lwevent_buffer_freed[endpoint->core], 1);
-#endif
-        	MCC_DCACHE_INVALIDATE_LINE((void*)&bookeeping_data->free_list);
-        	mcc_get_semaphore();
-        	buf = mcc_dequeue_buffer(&bookeeping_data->free_list);
-
-        	if(buf == null) {
+        	if(!end_time_set_flag) {
+            	time_us_tmp = mcc_time_get_microseconds();
+            	time_us_tmp += timeout_us;
+            	time.SECONDS = time_us_tmp/1000000;
+            	time.MILLISECONDS = time_us_tmp*1000;
+            	_time_to_ticks(&time, &tick_time);
+            	end_time_set_flag = 1;
+        	}
+        	return_value = _lwevent_wait_until(&lwevent_buffer_freed, 1, TRUE, &tick_time);
+        	if(return_value == LWEVENT_WAIT_TIMEOUT) {
         		/* Buffer not dequeued before the timeout */
-        		mcc_release_semaphore();
         		return MCC_ERR_TIMEOUT;
         	}
+        	_lwevent_clear(&lwevent_buffer_freed, 1);
+#endif
         }
+    	MCC_DCACHE_INVALIDATE_MLINES((void*)&bookeeping_data->free_list, sizeof(MCC_RECEIVE_LIST*));
+    	mcc_get_semaphore();
+    	buf = mcc_dequeue_buffer(&bookeeping_data->free_list);
     }
 
     /* Semaphore-protected section end */
@@ -315,7 +343,7 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
     mcc_memcpy(msg, (void*)buf->data, (unsigned int)msg_size);
     MCC_DCACHE_FLUSH_MLINES((void*)buf->data, msg_size);
     buf->data_len = msg_size;
-    MCC_DCACHE_FLUSH_LINE((void*)&buf->data_len);
+    MCC_DCACHE_FLUSH_MLINES((void*)&buf->data_len, sizeof(int));
 
     /* Semaphore-protected section start */
     return_value = mcc_get_semaphore();
@@ -344,17 +372,23 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
 }
 
 /*!
- * \brief This function receives a message. The data is copied into the user-app. buffer.
+ * \brief This function receives a message from the specified endpoint if one is available.
+ *        The data will be copied from the receive buffer into the user supplied buffer.
  *
  * This is the "receive with copy" version of the MCC receive function. This version is simple
  * to use but includes the cost of copying the data from shared memory into the user space buffer.
  * The user has no obligation or burden to manage shared memory buffers.
  *
- * \param[in] endpoint Pointer to the endpoint structure.
+ * \param[in] endpoint Pointer to the receiving endpoint to receive from.
  * \param[in] buffer Pointer to the user-app. buffer data will be copied into.
- * \param[in] buffer_size Size of the user-app. buffer data will be copied into.
- * \param[out] recv_size Pointer to the number of received bytes.
- * \param[in] timeout_us Timeout in microseconds. 0 = non-blocking call, 0xffffffff = blocking call .
+ * \param[in] buffer_size The maximum number of bytes to copy.
+ * \param[out] recv_size Pointer to an MCC_MEM_SIZE that will contain the number of bytes actually copied into the buffer.
+ * \param[in] timeout_us Timeout, in microseconds, to wait for a free buffer. A value of 0 means don’t wait (non-blocking call), 0xffffffff means wait forever (blocking call).
+ *
+ * \return MCC_SUCCESS
+ * \return MCC_ERR_ENDPOINT (the endpoint does not exist)
+ * \return MCC_ERR_SEMAPHORE (semaphore handling error)
+ * \return MCC_ERR_TIMEOUT (timeout exceeded before a buffer became available)
  */
 int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size, MCC_MEM_SIZE *recv_size, unsigned int timeout_us)
 {
@@ -365,6 +399,8 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
     int return_value, i = 0;
 #if (MCC_OS_USED == MCC_MQX)
     unsigned int time_us_tmp;
+    unsigned int lwevent_index = endpoint->port / MCC_MQX_LWEVENT_GROUP_SIZE;
+    unsigned int lwevent_group_index = endpoint->port % MCC_MQX_LWEVENT_GROUP_SIZE;
     TIME_STRUCT time;
     MQX_TICK_STRUCT tick_time;
 #endif
@@ -393,28 +429,27 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
     		return MCC_ERR_TIMEOUT;
     	}
     	/* Blocking call */
-    	else if(timeout_us == 0xFFFFFFFF) {
-#if (MCC_OS_USED == MCC_MQX)
-    		_lwevent_wait_ticks(&lwevent_buffer_queued[endpoint->core], 1<<endpoint->port, TRUE, 0);
-#endif
-    	    MCC_DCACHE_INVALIDATE_LINE((void*)list);
-    	}
-    	/* timeout_us > 0 */
     	else {
 #if (MCC_OS_USED == MCC_MQX)
-        	time_us_tmp = mcc_time_get_microseconds();
-        	time_us_tmp += timeout_us;
-        	time.SECONDS = time_us_tmp/1000000;
-        	time.MILLISECONDS = time_us_tmp*1000;
-        	_time_to_ticks(&time, &tick_time);
-        	_lwevent_wait_until(&lwevent_buffer_queued[endpoint->core], 1<<endpoint->port, TRUE, &tick_time);
+    		if(timeout_us == 0xFFFFFFFF) {
+        		_lwevent_wait_ticks(&lwevent_buffer_queued[lwevent_index], 1<<lwevent_group_index, TRUE, 0);
+    		}
+        	/* timeout_us > 0 */
+        	else {
+            	time_us_tmp = mcc_time_get_microseconds();
+            	time_us_tmp += timeout_us;
+            	time.SECONDS = time_us_tmp/1000000;
+            	time.MILLISECONDS = time_us_tmp*1000;
+            	_time_to_ticks(&time, &tick_time);
+            	_lwevent_wait_until(&lwevent_buffer_queued[lwevent_index], 1<<lwevent_group_index, TRUE, &tick_time);
+        	}
 #endif
-            MCC_DCACHE_INVALIDATE_LINE((void*)list);
+            MCC_DCACHE_INVALIDATE_MLINES((void*)list, sizeof(MCC_RECEIVE_LIST*));
     	}
     }
 
     /* Clear event bit specified for the particular endpoint in the lwevent_buffer_queued lwevent group */
-    _lwevent_clear(&lwevent_buffer_queued[endpoint->core], 1<<endpoint->port);
+    _lwevent_clear(&lwevent_buffer_queued[lwevent_index], 1<<lwevent_group_index);
 
     if(list->head == (MCC_RECEIVE_BUFFER*)0) {
     	/* Buffer not dequeued before the timeout */
@@ -422,10 +457,13 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
     }
 
     /* Copy the message from the MCC receive buffer into the user-app. buffer */
-    MCC_DCACHE_INVALIDATE_MLINES((void*)list->head->data, list->head->data_len);
-    mcc_memcpy((void*)list->head->data, buffer, buffer_size);
-    MCC_DCACHE_INVALIDATE_LINE((void*)list->head->data_len);
+    MCC_DCACHE_INVALIDATE_MLINES((void*)list->head->data_len, sizeof(int));
+    if (list->head->data_len > buffer_size) {
+    	list->head->data_len = buffer_size;
+    }
     *recv_size = (MCC_MEM_SIZE)(list->head->data_len);
+    MCC_DCACHE_INVALIDATE_MLINES((void*)list->head->data, list->head->data_len);
+    mcc_memcpy((void*)list->head->data, buffer, list->head->data_len);
 
     /* Semaphore-protected section start */
     return_value = mcc_get_semaphore();
@@ -436,7 +474,7 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
     buf = mcc_dequeue_buffer(list);
 
     /* Enqueue the buffer into the free list */
-    MCC_DCACHE_INVALIDATE_LINE((void*)&bookeeping_data->free_list);
+    MCC_DCACHE_INVALIDATE_MLINES((void*)&bookeeping_data->free_list, sizeof(MCC_RECEIVE_LIST*));
     mcc_queue_buffer(&bookeeping_data->free_list, buf);
 
     /* Notify all cores (except of itself) via CPU-to-CPU interrupt that a buffer has been freed */
@@ -458,17 +496,22 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
 }
 
 /*!
- * \brief This function receives a message. The data is NOT copied into the user-app. buffer.
+ * \brief This function receives a message from the specified endpoint if one is available. The data is NOT copied into the user-app. buffer.
  *
  * This is the "zero-copy receive" version of the MCC receive function. No data is copied, just
  * the pointer to the data is returned. This version is fast, but requires the user to manage
  * buffer allocation. Specifically the user must decide when a buffer is no longer in use and
  * make the appropriate API call to free it.
  *
- * \param[in] endpoint Pointer to the endpoint structure.
+ * \param[in] endpoint Pointer to the receiving endpoint to receive from.
  * \param[out] buffer_p Pointer to the MCC buffer of the shared memory where the received data is stored.
- * \param[out] recv_size Pointer to the number of received bytes.
- * \param[in] timeout_us Timeout in microseconds. 0 = non-blocking call, 0xffffffff = blocking call .
+ * \param[out] recv_size Pointer to an MCC_MEM_SIZE that will contain the number of valid bytes in the buffer.
+ * \param[in] timeout_us Timeout, in microseconds, to wait for a free buffer. A value of 0 means don’t wait (non-blocking call), 0xffffffff means wait forever (blocking call).
+ *
+ * \return MCC_SUCCESS
+ * \return MCC_ERR_ENDPOINT (the endpoint does not exist)
+ * \return MCC_ERR_SEMAPHORE (semaphore handling error)
+ * \return MCC_ERR_TIMEOUT (timeout exceeded before a buffer became available)
  */
 int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_size, unsigned int timeout_us)
 {
@@ -476,6 +519,8 @@ int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_
     int return_value;
 #if (MCC_OS_USED == MCC_MQX)
     unsigned int time_us_tmp;
+    unsigned int lwevent_index = endpoint->port / MCC_MQX_LWEVENT_GROUP_SIZE;
+    unsigned int lwevent_group_index = endpoint->port % MCC_MQX_LWEVENT_GROUP_SIZE;
     TIME_STRUCT time;
     MQX_TICK_STRUCT tick_time;
 #endif
@@ -493,34 +538,38 @@ int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_
     if(return_value != MCC_SUCCESS)
      	return return_value;
 
+    /* The endpoint is not valid */
+    if(list == null) {
+    	return MCC_ERR_ENDPOINT;
+    }
+
     if(list->head == (MCC_RECEIVE_BUFFER*)0) {
     	/* Non-blocking call */
     	if(timeout_us == 0) {
     		return MCC_ERR_TIMEOUT;
     	}
     	/* Blocking call */
-    	else if(timeout_us == 0xFFFFFFFF) {
-#if (MCC_OS_USED == MCC_MQX)
-    		_lwevent_wait_ticks(&lwevent_buffer_queued[endpoint->core], 1<<endpoint->port, TRUE, 0);
-#endif
-    	    MCC_DCACHE_INVALIDATE_LINE((void*)list);
-    	}
-    	/* timeout_us > 0 */
     	else {
 #if (MCC_OS_USED == MCC_MQX)
-        	time_us_tmp = mcc_time_get_microseconds();
-        	time_us_tmp += timeout_us;
-        	time.SECONDS = time_us_tmp/1000000;
-        	time.MILLISECONDS = time_us_tmp*1000;
-        	_time_to_ticks(&time, &tick_time);
-        	_lwevent_wait_until(&lwevent_buffer_queued[endpoint->core], 1<<endpoint->port, TRUE, &tick_time);
+    		if(timeout_us == 0xFFFFFFFF) {
+        		_lwevent_wait_ticks(&lwevent_buffer_queued[lwevent_index], 1<<lwevent_group_index, TRUE, 0);
+    		}
+        	/* timeout_us > 0 */
+        	else {
+            	time_us_tmp = mcc_time_get_microseconds();
+            	time_us_tmp += timeout_us;
+            	time.SECONDS = time_us_tmp/1000000;
+            	time.MILLISECONDS = time_us_tmp*1000;
+            	_time_to_ticks(&time, &tick_time);
+            	_lwevent_wait_until(&lwevent_buffer_queued[lwevent_index], 1<<lwevent_group_index, TRUE, &tick_time);
+        	}
 #endif
-            MCC_DCACHE_INVALIDATE_LINE((void*)list);
+            MCC_DCACHE_INVALIDATE_MLINES((void*)list, sizeof(MCC_RECEIVE_LIST*));
     	}
     }
 
     /* Clear event bit specified for the particular endpoint in the lwevent_buffer_queued lwevent group */
-    _lwevent_clear(&lwevent_buffer_queued[endpoint->core], 1<<endpoint->port);
+    _lwevent_clear(&lwevent_buffer_queued[lwevent_index], 1<<lwevent_group_index);
 
     if(list->head == (MCC_RECEIVE_BUFFER*)0) {
 		/* Buffer not dequeued before the timeout */
@@ -530,20 +579,24 @@ int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_
     /* Get the message pointer from the head of the receive buffer list */
     MCC_DCACHE_INVALIDATE_MLINES((void*)list->head->data, list->head->data_len);
     buffer_p = (void**)&list->head->data;
-    MCC_DCACHE_INVALIDATE_LINE((void*)list->head->data_len);
+    MCC_DCACHE_INVALIDATE_MLINES((void*)list->head->data_len, sizeof(int));
     *recv_size = (MCC_MEM_SIZE)(list->head->data_len);
 
     return return_value;
 }
 
 /*!
- * \brief This function returns number of available buffers for the specified endpoint.
+ * \brief This function returns number of buffers currently queued at the endpoint.
  *
  * Checks if messages are available on a receive endpoint. The call only checks the
  * availability of messages and does not dequeue them.
  *
  * \param[in] endpoint Pointer to the endpoint structure.
- * \param[out] num_msgs Pointer to the number of messages that are available in the receive queue and waiting for processing.
+ * \param[out] num_msgs Pointer to an int that will contain the number of buffers queued.
+ *
+ * \return MCC_SUCCESS
+ * \return MCC_ERR_ENDPOINT (the endpoint does not exist)
+ * \return MCC_ERR_SEMAPHORE (semaphore handling error)
  */
 int mcc_msgs_available(MCC_ENDPOINT *endpoint, unsigned int *num_msgs)
 {
@@ -558,7 +611,11 @@ int mcc_msgs_available(MCC_ENDPOINT *endpoint, unsigned int *num_msgs)
 		return return_value;
 
     /* Get list of buffers kept by the particular endpoint */
-    list = mcc_get_endpoint_list(*endpoint);
+    if(!(list = mcc_get_endpoint_list(*endpoint))) {
+    	/* The endpoint does not exists (has not been registered so far), return immediately - error */
+    	mcc_release_semaphore();
+    	return MCC_ERR_ENDPOINT;
+    }
 
     buf = list->head;
     while(buf != (MCC_RECEIVE_BUFFER*)0) {
@@ -576,14 +633,18 @@ int mcc_msgs_available(MCC_ENDPOINT *endpoint, unsigned int *num_msgs)
 }
 
 /*!
- * \brief This function frees a buffer.
+ * \brief This function frees a buffer previously returned by mcc_recv_nocopy().
  *
  * Once the zero-copy mechanism of receiving data is used this function
  * has to be called to free a buffer and to make it available for the next data
  * transfer.
  *
- * \param[in] endpoint Pointer to the endpoint structure.
+ * \param[in] endpoint Pointer to the endpoint the buffer was received from.
  * \param[in] buffer Pointer to the buffer to be freed.
+ *
+ * \return MCC_SUCCESS
+ * \return MCC_ERR_ENDPOINT (the endpoint does not exist)
+ * \return MCC_ERR_SEMAPHORE (semaphore handling error)
  */
 int mcc_free_buffer(MCC_ENDPOINT *endpoint, void *buffer)
 {
@@ -599,7 +660,11 @@ int mcc_free_buffer(MCC_ENDPOINT *endpoint, void *buffer)
 		return return_value;
 
     /* Get list of buffers kept by the particular endpoint */
-    list = mcc_get_endpoint_list(*endpoint);
+    if(!(list = mcc_get_endpoint_list(*endpoint))) {
+    	/* The endpoint does not exists (has not been registered so far), return immediately - error */
+    	mcc_release_semaphore();
+    	return MCC_ERR_ENDPOINT;
+    }
 
     /* Dequeue the buffer from the endpoint list */
     if(list->head == (MCC_RECEIVE_BUFFER*)buffer) {
@@ -615,7 +680,7 @@ int mcc_free_buffer(MCC_ENDPOINT *endpoint, void *buffer)
     }
 
     /* Enqueue the buffer into the free list */
-    MCC_DCACHE_INVALIDATE_LINE((void*)&bookeeping_data->free_list);
+    MCC_DCACHE_INVALIDATE_MLINES((void*)&bookeeping_data->free_list, sizeof(MCC_RECEIVE_LIST*));
     mcc_queue_buffer(&bookeeping_data->free_list, buf);
 
     /* Notify all cores (except of itself) via CPU-to-CPU interrupt that a buffer has been freed */
@@ -637,12 +702,15 @@ int mcc_free_buffer(MCC_ENDPOINT *endpoint, void *buffer)
 }
 
 /*!
- * \brief This function returns info structure.
+ * \brief This function returns information about the MCC sub system.
  *
  * Returns implementation specific information.
  *
  * \param[in] node Node number.
- * \param[out] info_data Pointer to the MCC info structure.
+ * \param[out] info_data Pointer to the MCC_INFO_STRUCT structure to hold returned data.
+ *
+ * \return MCC_SUCCESS
+ * \return MCC_ERR_SEMAPHORE (semaphore handling error)
  */
 int mcc_get_info(MCC_NODE node, MCC_INFO_STRUCT* info_data)
 {
