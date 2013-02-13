@@ -65,6 +65,7 @@ int mcc_initialize(MCC_NODE node)
     }
     _lwevent_create(&lwevent_buffer_freed,0);
 #endif
+
     /* Initialize synchronization module */
     return_value = mcc_init_semaphore(MCC_SEMAPHORE_NUMBER);
     if(return_value != MCC_SUCCESS)
@@ -77,6 +78,7 @@ int mcc_initialize(MCC_NODE node)
     	return return_value;
 
     /* Initialize the bookeeping structure */
+    bookeeping_data = (MCC_BOOKEEPING_STRUCT *)MCC_BASE_ADDRESS;
     MCC_DCACHE_INVALIDATE_MLINES(bookeeping_data, sizeof(MCC_BOOKEEPING_STRUCT));
     if(strcmp(bookeeping_data->init_string, init_string) != 0) {
 

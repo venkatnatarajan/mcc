@@ -46,7 +46,7 @@ unsigned int mcc_get_cpu_to_cpu_vector(unsigned int core)
       return  mcc_cpu_to_cpu_vectors[core];
 
    }
-   return 0;
+   return MCC_VECTOR_NUMBER_INVALID;
 }
 
 /*!

@@ -59,7 +59,7 @@ static void mcc_cpu_to_cpu_isr(void *param)
     /* Clear the interrupt flag */
     mcc_clear_cpu_to_cpu_interrupt(MCC_CORE_NUMBER);
 
-    while(mcc_dequeue_signal(MCC_CORE_NUMBER, &serviced_signal)) {
+    while(MCC_SUCCESS == mcc_dequeue_signal(MCC_CORE_NUMBER, &serviced_signal)) {
         if((serviced_signal.type == BUFFER_QUEUED) &&
            (serviced_signal.destination.core == MCC_CORE_NUMBER)) {
             /* Unblock receiver, in case of asynchronous communication */
@@ -147,7 +147,7 @@ int mcc_register_cpu_to_cpu_isr(void)
 
     vector_number = mcc_get_cpu_to_cpu_vector(MCC_CORE_NUMBER);
 
-    if(vector_number != 0) {
+    if(vector_number != MCC_VECTOR_NUMBER_INVALID) {
         _int_install_isr((_mqx_uint)vector_number, mcc_cpu_to_cpu_isr, NULL);
         mcc_clear_cpu_to_cpu_interrupt(MCC_CORE_NUMBER);
         _bsp_int_init(vector_number, 3, 0, TRUE); //TODO: handle priority value correctly, define in BSP?

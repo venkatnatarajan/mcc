@@ -95,7 +95,6 @@ void main_task(uint_32 node_num)
     coremutex_app_ptr = _core_mutex_create( 0, 2, MQX_TASK_QUEUE_FIFO );
 
     msg.DATA = 1;
-    bookeeping_data = (MCC_BOOKEEPING_STRUCT *)MCC_BASE_ADDRESS;
     ret_value = mcc_initialize(node_num);
     ret_value = mcc_get_info(node_num, &mcc_info);
     if(MCC_SUCCESS == ret_value && (strcmp(mcc_info.version_string, MCC_VERSION_STRING) != 0)) {
@@ -158,7 +157,6 @@ void responder_task(uint_32 node_num)
     coremutex_app_ptr = _core_mutex_create( 0, 2, MQX_TASK_QUEUE_FIFO );
 
     msg.DATA = 1;
-    bookeeping_data = (MCC_BOOKEEPING_STRUCT *)MCC_BASE_ADDRESS;
     ret_value = mcc_initialize(node_num);
     ret_value = mcc_get_info(node_num, &mcc_info);
     if(MCC_SUCCESS == ret_value && (strcmp(mcc_info.version_string, MCC_VERSION_STRING) != 0)) {

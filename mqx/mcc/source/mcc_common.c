@@ -51,7 +51,10 @@ MCC_BOOKEEPING_STRUCT * bookeeping_data;
  * Register an endpoint with specified structure / params (core, node and port).
  *
  * \param[in] endpoint Pointer to the endpoint structure.
- * \param[Out] Status
+ *
+ * \return MCC_SUCCESS
+ * \return MCC_ERR_NOMEM (maximum number of endpoints exceeded)
+ * \return MCC_ERR_ENDPOINT (invalid value for port or endpoint already registered)
  */
 int mcc_register_endpoint(MCC_ENDPOINT endpoint)
 {
@@ -84,7 +87,9 @@ int mcc_register_endpoint(MCC_ENDPOINT endpoint)
  * Removes an endpoint with specified structure / params (core, node and port).
  *
  * \param[in] endpoint Pointer to the endpoint structure.
- * \param[Out] Status
+ *
+ * \return MCC_SUCCESS
+ * \return MCC_ERR_ENDPOINT (the endpoint doesn’t exist)
  */
 int mcc_remove_endpoint(MCC_ENDPOINT endpoint)
 {
@@ -121,8 +126,9 @@ int mcc_remove_endpoint(MCC_ENDPOINT endpoint)
  *
  * Dequeues the buffer from the list.
  *
- * \param[in] Pointer to the MCC_RECEIVE_LIST structure.
- * \param[Out] Pointer to MCC_RECEIVE_BUFFER
+ * \param[in] list Pointer to the MCC_RECEIVE_LIST structure.
+ *  
+ * \return Pointer to MCC_RECEIVE_BUFFER
  */
 MCC_RECEIVE_BUFFER * mcc_dequeue_buffer(MCC_RECEIVE_LIST *list)
 {
@@ -156,8 +162,10 @@ MCC_RECEIVE_BUFFER * mcc_dequeue_buffer(MCC_RECEIVE_LIST *list)
  *
  * Queues the buffer in the list.
  *
- * \param[in] Pointer to the MCC_RECEIVE_LIST structure and pointer to MCC_RECEIVE_BUFFER.
- * \param[Out] none
+ * \param[in] list Pointer to the MCC_RECEIVE_LIST structure.
+ * \param[in] r_buffer Pointer to MCC_RECEIVE_BUFFER.
+ *  
+ * \return none
  */
 void mcc_queue_buffer(MCC_RECEIVE_LIST *list, MCC_RECEIVE_BUFFER * r_buffer)
 {
@@ -198,8 +206,10 @@ void mcc_queue_buffer(MCC_RECEIVE_LIST *list, MCC_RECEIVE_BUFFER * r_buffer)
  *
  * Returns the MCC_RECEIVE_LIST respective to the endpoint structure provided.
  *
- * \param[in] Pointer to the MCC_ENDPOINT structure.
- * \param[Out] MCC_RECEIVE_LIST / null.
+ * \param[in] endpoint Pointer to the MCC_ENDPOINT structure.
+ *  
+ * \return MCC_RECEIVE_LIST pointer 
+ * \return null pointer
  */
 MCC_RECEIVE_LIST * mcc_get_endpoint_list(MCC_ENDPOINT endpoint)
 {
@@ -217,8 +227,10 @@ MCC_RECEIVE_LIST * mcc_get_endpoint_list(MCC_ENDPOINT endpoint)
 	return null;
 }
 
-/*
- * Signal circula queue rules:
+/*!
+ * \brief This function queues a signal
+ *  
+ * Signal circular queue rules:
  * 	tail points to next free slot
  * 	head points to first occupied slot
  * 	head == tail indicates empty
@@ -226,16 +238,12 @@ MCC_RECEIVE_LIST * mcc_get_endpoint_list(MCC_ENDPOINT endpoint)
  * This method costs 1 slot since you need to differentiate
  * between full and empty (if you fill the last slot it looks
  * like empty since h == t)
- */
-
-/*!
- * \brief This function queues a signal
  *
- * Returns MCC_SUCCESS on success, MCC_ERR_NOMEM if queue full
- *
- * \param[in] Core number to signal
- * \param[in] signal
- * \param[Out] MCC_RECEIVE_LIST / null.
+ * \param[in] core Core number.
+ * \param[in] signal Signal to be queued.
+ *  
+ * \return MCC_SUCCESS
+ * \return MCC_ERR_NOMEM (signal queue is full - no more that MCC_MAX_OUTSTANDING_SIGNALS items allowed)
  */
 int mcc_queue_signal(MCC_CORE core, MCC_SIGNAL signal)
 {
@@ -262,12 +270,14 @@ int mcc_queue_signal(MCC_CORE core, MCC_SIGNAL signal)
 
 /*!
  * \brief This function dequeues a signal
- *
- * Returns the number of signals dequeued (0 or 1).
- *
- * \param[in] Core number to signal
- * \param[in] signal
- * \param[Out] MCC_RECEIVE_LIST / null.
+ * 
+ * It dequeues a signal from the signal queue for the particular core.
+ *    
+ * \param[in] core Core number.
+ * \param[in] signal Signal to be dequeued.
+ *  
+ * \return MCC_SUCCESS
+ * \return MCC_ERR_INVAL (signal queue is empty, nothing to dequeue)
  */
 int mcc_dequeue_signal(MCC_CORE core, MCC_SIGNAL *signal)
 {
@@ -276,7 +286,7 @@ int mcc_dequeue_signal(MCC_CORE core, MCC_SIGNAL *signal)
 	int head = bookeeping_data->signal_queue_head[core];
 
 	if(MCC_SIGNAL_QUEUE_EMPTY(core))
-		return 0;
+		return MCC_ERR_INVAL;
 
 	MCC_DCACHE_INVALIDATE_MLINES((void*)&bookeeping_data->signals_received[core][head], sizeof(MCC_SIGNAL));
 	signal->type = bookeeping_data->signals_received[core][head].type;
@@ -287,7 +297,7 @@ int mcc_dequeue_signal(MCC_CORE core, MCC_SIGNAL *signal)
 	bookeeping_data->signal_queue_head[core] = head == (MCC_MAX_OUTSTANDING_SIGNALS-1) ? 0 : head+1;
 	MCC_DCACHE_FLUSH_MLINES((void*)&bookeeping_data->signal_queue_head[core], sizeof(unsigned int));
 
-	return 1;
+	return MCC_SUCCESS;
 }
 
 
