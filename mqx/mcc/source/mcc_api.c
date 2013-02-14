@@ -67,7 +67,7 @@ int mcc_initialize(MCC_NODE node)
 #endif
 
     /* Initialize synchronization module */
-    return_value = mcc_init_semaphore(MCC_SEMAPHORE_NUMBER);
+    return_value = mcc_init_semaphore(MCC_SHMEM_SEMAPHORE_NUMBER);
     if(return_value != MCC_SUCCESS)
     	return return_value;
 
@@ -160,7 +160,7 @@ int mcc_destroy(MCC_NODE node)
     	return return_value;
 
     /* Deinitialize synchronization module */
-    mcc_deinit_semaphore(MCC_SEMAPHORE_NUMBER);
+    mcc_deinit_semaphore(MCC_SHMEM_SEMAPHORE_NUMBER);
 
     // TODO: Clear signal queue, Unregister the CPU-to-CPU interrupt????
     return return_value;
@@ -257,6 +257,7 @@ int mcc_destroy_endpoint(MCC_ENDPOINT *endpoint)
  * \return MCC_ERR_INVAL (an invalid address has been supplied for msg or the msg_size exceeds the size of a data buffer)
  * \return MCC_ERR_TIMEOUT (timeout exceeded before a buffer became available)
  * \return MCC_ERR_NOMEM (no free buffer available and timeout_us set to 0)
+ * \return MCC_ERR_SQ_FULL (signal queue is full)
  */
 int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned int timeout_us)
 {
@@ -359,6 +360,10 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
     affiliated_signal.type = BUFFER_QUEUED;
     affiliated_signal.destination = *endpoint;
     return_value = mcc_queue_signal(endpoint->core, affiliated_signal);
+    if(return_value != MCC_SUCCESS) {
+    	//TODO  dequeue the buffer back from the endpoint buffer list and issue an error
+     	return return_value;
+    }
 
     /* Semaphore-protected section end */
     mcc_release_semaphore();

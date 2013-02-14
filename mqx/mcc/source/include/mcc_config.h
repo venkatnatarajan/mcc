@@ -55,6 +55,10 @@
 #define MCC_CORE_NUMBER                (_psp_core_num())
 
 /* semaphore number */
-#define MCC_SEMAPHORE_NUMBER           (1)
+#define MCC_SHMEM_SEMAPHORE_NUMBER      (1)
+#define MCC_PRINTF_SEMAPHORE_NUMBER     (2)
+#define MCC_I2C_SEMAPHORE_NUMBER        (3)
+#define MCC_RESERVED1_SEMAPHORE_NUMBER  (4)
+#define MCC_RESERVED2_SEMAPHORE_NUMBER  (5)
 
 #endif /* __MCC_CONFIG__ */

@@ -101,7 +101,7 @@ int mcc_init_semaphore(unsigned int sem_num)
 int mcc_deinit_semaphore(unsigned int sem_num)
 {
     /* Destroy the core mutex */
-    if(MQX_OK == _core_mutex_destroy(cm_ptr))
+    if(COREMUTEX_OK == _core_mutex_destroy(cm_ptr))
         return MCC_SUCCESS;
     else
         return MCC_ERR_SEMAPHORE;
@@ -115,7 +115,7 @@ int mcc_deinit_semaphore(unsigned int sem_num)
  */
 int mcc_get_semaphore(void)
 {
-    if(MQX_OK == _core_mutex_lock(cm_ptr))
+    if(COREMUTEX_OK == _core_mutex_lock(cm_ptr))
         return MCC_SUCCESS;
     else
         return MCC_ERR_SEMAPHORE;
@@ -129,7 +129,7 @@ int mcc_get_semaphore(void)
  */
 int mcc_release_semaphore(void)
 {
-    if(MQX_OK == _core_mutex_unlock(cm_ptr))
+    if(COREMUTEX_OK == _core_mutex_unlock(cm_ptr))
         return MCC_SUCCESS;
     else
         return MCC_ERR_SEMAPHORE;

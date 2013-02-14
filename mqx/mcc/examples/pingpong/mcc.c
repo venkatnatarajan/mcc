@@ -92,7 +92,7 @@ void main_task(uint_32 node_num)
     int             ret_value;
 
     /* create core mutex used in the app. for accessing the serial console */
-    coremutex_app_ptr = _core_mutex_create( 0, 2, MQX_TASK_QUEUE_FIFO );
+    coremutex_app_ptr = _core_mutex_create( 0, MCC_PRINTF_SEMAPHORE_NUMBER, MQX_TASK_QUEUE_FIFO );
 
     msg.DATA = 1;
     ret_value = mcc_initialize(node_num);
@@ -154,7 +154,7 @@ void responder_task(uint_32 node_num)
     int             ret_value;
 
     /* create core mutex used in the app. for accessing the serial console */
-    coremutex_app_ptr = _core_mutex_create( 0, 2, MQX_TASK_QUEUE_FIFO );
+    coremutex_app_ptr = _core_mutex_create( 0, MCC_PRINTF_SEMAPHORE_NUMBER, MQX_TASK_QUEUE_FIFO );
 
     msg.DATA = 1;
     ret_value = mcc_initialize(node_num);
