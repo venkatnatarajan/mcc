@@ -243,7 +243,7 @@ MCC_RECEIVE_LIST * mcc_get_endpoint_list(MCC_ENDPOINT endpoint)
  * \param[in] signal Signal to be queued.
  *  
  * \return MCC_SUCCESS
- * \return MCC_ERR_NOMEM (signal queue is full - no more that MCC_MAX_OUTSTANDING_SIGNALS items allowed)
+ * \return MCC_ERR_SQ_FULL (signal queue is full - no more that MCC_MAX_OUTSTANDING_SIGNALS items allowed)
  */
 int mcc_queue_signal(MCC_CORE core, MCC_SIGNAL signal)
 {
@@ -253,7 +253,7 @@ int mcc_queue_signal(MCC_CORE core, MCC_SIGNAL signal)
 	int new_tail = tail == (MCC_MAX_OUTSTANDING_SIGNALS-1) ? 0 : tail+1;
 
 	if(MCC_SIGNAL_QUEUE_FULL(core))
-		return MCC_ERR_NOMEM;
+		return MCC_ERR_SQ_FULL;
 
 	MCC_DCACHE_INVALIDATE_MLINES((void*)&bookeeping_data->signals_received[core][tail], sizeof(MCC_SIGNAL));
 	bookeeping_data->signals_received[core][tail].type = signal.type;
@@ -277,7 +277,7 @@ int mcc_queue_signal(MCC_CORE core, MCC_SIGNAL signal)
  * \param[in] signal Signal to be dequeued.
  *  
  * \return MCC_SUCCESS
- * \return MCC_ERR_INVAL (signal queue is empty, nothing to dequeue)
+ * \return MCC_ERR_SQ_EMPTY (signal queue is empty, nothing to dequeue)
  */
 int mcc_dequeue_signal(MCC_CORE core, MCC_SIGNAL *signal)
 {
@@ -286,7 +286,7 @@ int mcc_dequeue_signal(MCC_CORE core, MCC_SIGNAL *signal)
 	int head = bookeeping_data->signal_queue_head[core];
 
 	if(MCC_SIGNAL_QUEUE_EMPTY(core))
-		return MCC_ERR_INVAL;
+		return MCC_ERR_SQ_EMPTY;
 
 	MCC_DCACHE_INVALIDATE_MLINES((void*)&bookeeping_data->signals_received[core][head], sizeof(MCC_SIGNAL));
 	signal->type = bookeeping_data->signals_received[core][head].type;

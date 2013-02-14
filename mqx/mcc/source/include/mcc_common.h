@@ -192,6 +192,8 @@ extern MCC_BOOKEEPING_STRUCT * bookeeping_data;
 #define MCC_ERR_SEMAPHORE   (5) /* semaphore handling error */
 #define MCC_ERR_DEV         (6) /* Device Open Error */
 #define MCC_ERR_INT         (7) /* Interrupt Error */
+#define MCC_ERR_SQ_FULL     (8) /* Signal queue is full */
+#define MCC_ERR_SQ_EMPTY    (9) /* Signal queue is empty */
 
 /*
  * OS Selection
