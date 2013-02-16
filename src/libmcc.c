@@ -44,12 +44,16 @@ static unsigned int current_timeout_us = 0xFFFFFFFF; //0
 static MCC_READ_MODE current_read_mode = MCC_READ_MODE_UNDEFINED;
 
 /*!
- * \brief This function initializes the Multi Core Communication.
+ * \brief This function initializes the Multi Core Communication subsystem for a given node.
  *
- * XXX
+ * This should only be called once per node (once in MQX, once per process in Linux).
  *
- * \param[in] node Node number.
- */
+ * \param[in] node Node number that will be used in endpoints created by this process.
+ *
+ * \return MCC_SUCCESS
+ * \return MCC_ERR_SEMAPHORE (semaphore handling error)
+ * \return MCC_ERR_INT (Interrupt registration error)
+*/
 int mcc_initialize(MCC_NODE node)
 {
 	int i;
@@ -72,11 +76,14 @@ int mcc_initialize(MCC_NODE node)
 }
 
 /*!
- * \brief This function de-initializes the Multi Core Communication.
+ * \brief This function de-initializes the Multi Core Communication subsystem for a given node.
  *
- * Clear local data, clean semaphore and share memory resources ......
+ * Frees all resources of the node. Deletes all endpoints and frees any buffers that may have been queued there.
  *
  * \param[in] node Node number to be deinitialized.
+ *
+ * \return MCC_SUCCESS
+ * \return MCC_ERR_SEMAPHORE (semaphore handling error)
  */
 int mcc_destroy(MCC_NODE node)
 {
@@ -98,9 +105,16 @@ int mcc_destroy(MCC_NODE node)
  * \brief This function creates an endpoint.
  *
  * Create an endpoint on the local node with the specified port number.
+ * The core and node provided in endpoint must match the callers core and
+ * node and the port argument must match the endpoint port.
  *
- * \param[out] endpoint Pointer to the endpoint structure.
+ * \param[out] endpoint Pointer to the endpoint triplet to be created.
  * \param[in] port Port number.
+ *
+ * \return MCC_SUCCESS
+ * \return MCC_ERR_NOMEM (maximum number of endpoints exceeded)
+ * \return MCC_ERR_ENDPOINT (invalid value for core, node, or port)
+ * \return MCC_ERR_SEMAPHORE (semaphore handling error)
  */
 int mcc_create_endpoint(MCC_ENDPOINT *endpoint, MCC_PORT port)
 {
@@ -131,12 +145,16 @@ int mcc_create_endpoint(MCC_ENDPOINT *endpoint, MCC_PORT port)
 }
 
 /*!
- * \brief This function destrois an endpoint.
+  * \brief This function destroys an endpoint.
  *
- * Destroy an endpoint on the local node.
+ * Destroy an endpoint on the local node and frees any buffers that may be queued.
  *
- * \param[in] endpoint Pointer to the endpoint structure.
- */
+ * \param[in] endpoint Pointer to the endpoint triplet to be deleted.
+ *
+ * \return MCC_SUCCESS
+ * \return MCC_ERR_ENDPOINT (the endpoint doesnt exist)
+ * \return MCC_ERR_SEMAPHORE (semaphore handling error)
+*/
 int mcc_destroy_endpoint(MCC_ENDPOINT *endpoint)
 {
 	int i;
@@ -186,16 +204,22 @@ int set_io_modes(int set_endpoint_command, MCC_ENDPOINT *current_endpoint, MCC_E
 }
 
 /*!
- * \brief This function sends a message.
+ * \brief This function sends a message to an endpoint.
  *
- * The message is copied into the MCC buffer and the other core is signaled.
+ * The message is copied into the MCC buffer and the destination core is signaled.
  *
- * \param[in] endpoint Pointer to the endpoint structure.
- * \param[in] msg Pointer to the meassge to be sent.
- * \param[in] msg_size Size of the meassge to be sent.
- * \param[in] timeout_us Timeout in microseconds. 0 = non-blocking call, 0xffffffff = blocking call .
+ * \param[in] endpoint Pointer to the receiving endpoint to send to.
+ * \param[in] msg Pointer to the message to be sent.
+ * \param[in] msg_size Size of the message to be sent in bytes.
+ * \param[in] timeout_us Timeout, in microseconds, to wait for a free buffer. A value of 0 means dont wait (non-blocking call), 0xffffffff means wait forever (blocking call).
  *
- * TODO handle values besides 0 or 0xffffffff
+ * \return MCC_SUCCESS
+ * \return MCC_ERR_ENDPOINT (the endpoint does not exist)
+ * \return MCC_ERR_SEMAPHORE (semaphore handling error)
+ * \return MCC_ERR_INVAL (an invalid address has been supplied for msg or the msg_size exceeds the size of a data buffer)
+ * \return MCC_ERR_TIMEOUT (timeout exceeded before a buffer became available)
+ * \return MCC_ERR_NOMEM (no free buffer available and timeout_us set to 0)
+ * \return MCC_ERR_SQ_FULL (signal queue is full)
  */
 int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned int timeout_us)
 {
@@ -214,17 +238,23 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
 
 
 /*!
- * \brief This function receives a message. The data is copied into the user-app. buffer.
+* \brief This function receives a message from the specified endpoint if one is available.
+ *        The data will be copied from the receive buffer into the user supplied buffer.
  *
  * This is the "receive with copy" version of the MCC receive function. This version is simple
  * to use but includes the cost of copying the data from shared memory into the user space buffer.
  * The user has no obligation or burden to manage shared memory buffers.
  *
- * \param[in] endpoint Pointer to the endpoint structure.
+ * \param[in] endpoint Pointer to the receiving endpoint to receive from.
  * \param[in] buffer Pointer to the user-app. buffer data will be copied into.
- * \param[in] buffer_size Size of the user-app. buffer data will be copied into.
- * \param[out] recv_size Pointer to the number of received bytes.
- * \param[in] timeout_us Timeout in microseconds. 0 = non-blocking call, 0xffffffff = blocking call
+ * \param[in] buffer_size The maximum number of bytes to copy.
+ * \param[out] recv_size Pointer to an MCC_MEM_SIZE that will contain the number of bytes actually copied into the buffer.
+ * \param[in] timeout_us Timeout, in microseconds, to wait for a free buffer. A value of 0 means dont wait (non-blocking call), 0xffffffff means wait forever (blocking call).
+ *
+ * \return MCC_SUCCESS
+ * \return MCC_ERR_ENDPOINT (the endpoint does not exist)
+ * \return MCC_ERR_SEMAPHORE (semaphore handling error)
+ * \return MCC_ERR_TIMEOUT (timeout exceeded before a buffer became available)
  */
 int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size, MCC_MEM_SIZE *recv_size, unsigned int timeout_us)
 {
@@ -250,17 +280,22 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
 }
 
 /*!
- * \brief This function receives a message. The data is NOT copied into the user-app. buffer.
+ * \brief This function receives a message from the specified endpoint if one is available. The data is NOT copied into the user-app. buffer.
  *
  * This is the "zero-copy receive" version of the MCC receive function. No data is copied, just
  * the pointer to the data is returned. This version is fast, but requires the user to manage
  * buffer allocation. Specifically the user must decide when a buffer is no longer in use and
  * make the appropriate API call to free it.
  *
- * \param[in] endpoint Pointer to the endpoint structure.
+ * \param[in] endpoint Pointer to the receiving endpoint to receive from.
  * \param[out] buffer_p Pointer to the MCC buffer of the shared memory where the received data is stored.
- * \param[out] recv_size Pointer to the number of received bytes.
- * \param[in] timeout_us Timeout in microseconds. 0 = non-blocking call, 0xffffffff = blocking call .
+ * \param[out] recv_size Pointer to an MCC_MEM_SIZE that will contain the number of valid bytes in the buffer.
+ * \param[in] timeout_us Timeout, in microseconds, to wait for a free buffer. A value of 0 means dont wait (non-blocking call), 0xffffffff means wait forever (blocking call).
+ *
+ * \return MCC_SUCCESS
+ * \return MCC_ERR_ENDPOINT (the endpoint does not exist)
+ * \return MCC_ERR_SEMAPHORE (semaphore handling error)
+ * \return MCC_ERR_TIMEOUT (timeout exceeded before a buffer became available)
  */
 int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_size, unsigned int timeout_us)
 {
@@ -292,13 +327,17 @@ int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_
 }
 
 /*!
- * \brief This function returns number of available buffers for the specified endpoint.
+ * \brief This function returns number of buffers currently queued at the endpoint.
  *
  * Checks if messages are available on a receive endpoint. The call only checks the
  * availability of messages and does not dequeue them.
  *
  * \param[in] endpoint Pointer to the endpoint structure.
- * \param[out] num_msgs Pointer to the number of messages that are available in the receive queue and waiting for processing.
+ * \param[out] num_msgs Pointer to an int that will contain the number of buffers queued.
+ *
+ * \return MCC_SUCCESS
+ * \return MCC_ERR_ENDPOINT (the endpoint does not exist)
+ * \return MCC_ERR_SEMAPHORE (semaphore handling error)
  */
 int mcc_msgs_available(MCC_ENDPOINT *endpoint, unsigned int *num_msgs)
 {
@@ -317,14 +356,18 @@ int mcc_msgs_available(MCC_ENDPOINT *endpoint, unsigned int *num_msgs)
 }
 
 /*!
- * \brief This function frees a buffer.
+  * \brief This function frees a buffer previously returned by mcc_recv_nocopy().
  *
  * Once the zero-copy mechanism of receiving data is used this function
  * has to be called to free a buffer and to make it available for the next data
  * transfer.
  *
- * \param[in] endpoint Pointer to the endpoint structure.
+ * \param[in] endpoint Pointer to the endpoint the buffer was received from.
  * \param[in] buffer Pointer to the buffer to be freed.
+ *
+ * \return MCC_SUCCESS
+ * \return MCC_ERR_ENDPOINT (the endpoint does not exist)
+ * \return MCC_ERR_SEMAPHORE (semaphore handling error)
  */
 int mcc_free_buffer(MCC_ENDPOINT *endpoint, void *buffer)
 {
@@ -335,12 +378,15 @@ int mcc_free_buffer(MCC_ENDPOINT *endpoint, void *buffer)
 }
 
 /*!
- * \brief This function returns info structure.
+  * \brief This function returns information about the MCC sub system.
  *
  * Returns implementation specific information.
  *
  * \param[in] node Node number.
- * \param[out] info_data Pointer to the MCC info structure.
+ * \param[out] info_data Pointer to the MCC_INFO_STRUCT structure to hold returned data.
+ *
+ * \return MCC_SUCCESS
+ * \return MCC_ERR_SEMAPHORE (semaphore handling error)
  */
 int mcc_get_info(MCC_NODE node, MCC_INFO_STRUCT* info_data)
 {
