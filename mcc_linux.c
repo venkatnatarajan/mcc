@@ -169,7 +169,7 @@ static int mcc_close(struct inode *i, struct file *f)
 
 static int mcc_free_buffer(MCC_RECEIVE_BUFFER * buffer)
 {
-	if(mcc_sema4_grab(MCC_SEMAPHORE_NUMBER))
+	if(mcc_sema4_grab(MCC_SHMEM_SEMAPHORE_NUMBER))
 		return -EBUSY;
 	// free the buffer
 	mcc_queue_buffer(&bookeeping_data->free_list, buffer);
@@ -177,11 +177,11 @@ static int mcc_free_buffer(MCC_RECEIVE_BUFFER * buffer)
 	// signal all other cores a buffer has been made available
 	if(signal_freed())
 	{
-		mcc_sema4_release(MCC_SEMAPHORE_NUMBER);
+		mcc_sema4_release(MCC_SHMEM_SEMAPHORE_NUMBER);
 		return -ENOMEM;
 	}
 
-	mcc_sema4_release(MCC_SEMAPHORE_NUMBER);
+	mcc_sema4_release(MCC_SHMEM_SEMAPHORE_NUMBER);
 
 	// wake yourself up again in case anyone here waiting for free buf
 	//wake_up_interruptible(&wait_queue);
@@ -200,14 +200,14 @@ static ssize_t mcc_read(struct file *f, char __user *buf, size_t len, loff_t *of
 	unsigned int offset = 0;
 
 	// get my receive list
-	if(mcc_sema4_grab(MCC_SEMAPHORE_NUMBER))
+	if(mcc_sema4_grab(MCC_SHMEM_SEMAPHORE_NUMBER))
 		return -EBUSY;
 	if(!(recv_list = mcc_get_endpoint_list(priv_p->recv_endpoint)))
 	{
-		mcc_sema4_release(MCC_SEMAPHORE_NUMBER);
+		mcc_sema4_release(MCC_SHMEM_SEMAPHORE_NUMBER);
 		return -EINVAL;
 	}
-	mcc_sema4_release(MCC_SEMAPHORE_NUMBER);
+	mcc_sema4_release(MCC_SHMEM_SEMAPHORE_NUMBER);
 
 	// block unless asked not to
 	if(!(f->f_flags & O_NONBLOCK))
@@ -229,10 +229,10 @@ static ssize_t mcc_read(struct file *f, char __user *buf, size_t len, loff_t *of
 	}
 
 	// dequeue the buffer (if any)
-	if(mcc_sema4_grab(MCC_SEMAPHORE_NUMBER))
+	if(mcc_sema4_grab(MCC_SHMEM_SEMAPHORE_NUMBER))
 		return -EBUSY;
 	buffer = mcc_dequeue_buffer(recv_list);
-	mcc_sema4_release(MCC_SEMAPHORE_NUMBER);
+	mcc_sema4_release(MCC_SHMEM_SEMAPHORE_NUMBER);
 
 	if(buffer)
 	{
@@ -286,14 +286,14 @@ static ssize_t mcc_write(struct file *f, const char __user *buf, size_t len, lof
 		return -EINVAL;
 
 	// get the target endpoint
-	if(mcc_sema4_grab(MCC_SEMAPHORE_NUMBER))
+	if(mcc_sema4_grab(MCC_SHMEM_SEMAPHORE_NUMBER))
 		return -EBUSY;
 	if(!(send_list = mcc_get_endpoint_list(priv_p->send_endpoint)))
 	{
-		mcc_sema4_release(MCC_SEMAPHORE_NUMBER);
+		mcc_sema4_release(MCC_SHMEM_SEMAPHORE_NUMBER);
 		return -EINVAL;
 	}
-	mcc_sema4_release(MCC_SEMAPHORE_NUMBER);
+	mcc_sema4_release(MCC_SHMEM_SEMAPHORE_NUMBER);
 
 	// block unless asked not to
 	if(!(f->f_flags & O_NONBLOCK))
@@ -315,21 +315,21 @@ static ssize_t mcc_write(struct file *f, const char __user *buf, size_t len, lof
 	}
 
 	// get a free data buffer
-	if(mcc_sema4_grab(MCC_SEMAPHORE_NUMBER))
+	if(mcc_sema4_grab(MCC_SHMEM_SEMAPHORE_NUMBER))
 		return -EBUSY;
 	if(null == (buffer = mcc_dequeue_buffer(&bookeeping_data->free_list)))
 	{
-		mcc_sema4_release(MCC_SEMAPHORE_NUMBER);
+		mcc_sema4_release(MCC_SHMEM_SEMAPHORE_NUMBER);
 		return -ENOMEM;
 	}
-	mcc_sema4_release(MCC_SEMAPHORE_NUMBER);
+	mcc_sema4_release(MCC_SHMEM_SEMAPHORE_NUMBER);
 
 	// load the data
 	if (copy_from_user(&buffer->data, buf, len))
 		return -EFAULT;
 	buffer->data_len = len;
 
-	if(mcc_sema4_grab(MCC_SEMAPHORE_NUMBER))
+	if(mcc_sema4_grab(MCC_SHMEM_SEMAPHORE_NUMBER))
 		return -EBUSY;
 	// queue it
 	mcc_queue_buffer(send_list, buffer);
@@ -337,11 +337,11 @@ static ssize_t mcc_write(struct file *f, const char __user *buf, size_t len, lof
 	// signal the other side a buffer has been made available
 	if(signal_queued(priv_p->send_endpoint))
 	{
-		mcc_sema4_release(MCC_SEMAPHORE_NUMBER);
+		mcc_sema4_release(MCC_SHMEM_SEMAPHORE_NUMBER);
 		return -ENOMEM;
 	}
 
-	mcc_sema4_release(MCC_SEMAPHORE_NUMBER);
+	mcc_sema4_release(MCC_SHMEM_SEMAPHORE_NUMBER);
 
 	return len;
 }
@@ -370,12 +370,12 @@ static long mcc_ioctl(struct file *f, unsigned cmd, unsigned long arg)
 		if (copy_from_user(&endpoint, buf, sizeof(endpoint)))
 			return -EFAULT;
 
-		if(mcc_sema4_grab(MCC_SEMAPHORE_NUMBER))
+		if(mcc_sema4_grab(MCC_SHMEM_SEMAPHORE_NUMBER))
 			return -EBUSY;
 
 		retval = cmd == MCC_CREATE_ENDPOINT ? mcc_register_endpoint(endpoint) : mcc_remove_endpoint(endpoint);
 
-		mcc_sema4_release(MCC_SEMAPHORE_NUMBER);
+		mcc_sema4_release(MCC_SHMEM_SEMAPHORE_NUMBER);
 		break;
 
 	case MCC_SET_RECEIVE_ENDPOINT:
@@ -457,25 +457,25 @@ static long mcc_ioctl(struct file *f, unsigned cmd, unsigned long arg)
 			return -EFAULT;
 
 		// grab the semaphore
-		if(mcc_sema4_grab(MCC_SEMAPHORE_NUMBER))
+		if(mcc_sema4_grab(MCC_SHMEM_SEMAPHORE_NUMBER))
 			return -EBUSY;
 
 		// find the list
 		if(!(r_list = mcc_get_endpoint_list(q_info.endpoint)))
 		{
-			mcc_sema4_release(MCC_SEMAPHORE_NUMBER);
+			mcc_sema4_release(MCC_SHMEM_SEMAPHORE_NUMBER);
 			return -EINVAL;
 		}
 
 		// count the messages
-	        r_buf = MQX_TO_VIRT(r_list->head);
+	        r_buf = (MCC_RECEIVE_BUFFER *)MQX_TO_VIRT(r_list->head);
 		while (r_buf) {
 			count++;
-			r_buf = MQX_TO_VIRT(r_buf->next);
+			r_buf = (MCC_RECEIVE_BUFFER *)MQX_TO_VIRT(r_buf->next);
 		}	
 
 		// release the semaphore
-		mcc_sema4_release(MCC_SEMAPHORE_NUMBER);
+		mcc_sema4_release(MCC_SHMEM_SEMAPHORE_NUMBER);
 
 		// load and return the structure
 		q_info.current_queue_length = count;
