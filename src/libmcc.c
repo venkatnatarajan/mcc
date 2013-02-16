@@ -40,6 +40,8 @@ static MCC_ENDPOINT send_endpoint, recv_endpoint;
 static unsigned int current_timeout_us = 0xFFFFFFFF; //0
 static MCC_READ_MODE current_read_mode = MCC_READ_MODE_UNDEFINED;
 
+#define MCC_ENDPOINT_IN_USE(e) (e.port != MCC_RESERVED_PORT_NUMBER)
+
 /*!
  * \brief This function initializes the Multi Core Communication subsystem for a given node.
  *
@@ -93,7 +95,7 @@ int mcc_destroy(MCC_NODE node)
 	// delete all endpoints associated with this node
 	for(i=0; i<MCC_ATTR_MAX_RECEIVE_ENDPOINTS; i++)
 	{
-		if(ENDPOINT_IN_USE(endpoints[i]))
+		if(MCC_ENDPOINT_IN_USE(endpoints[i]))
 		{
 			if(ioctl(fd, MCC_DESTROY_ENDPOINT, &endpoints[i]) < 0)
 			{
@@ -184,7 +186,7 @@ int mcc_destroy_endpoint(MCC_ENDPOINT *endpoint)
 
 	for(i=0; i<MCC_ATTR_MAX_RECEIVE_ENDPOINTS; i++)
 	{
-		if(ENDPOINTS_EQUAL(endpoints[i], (*endpoint)))
+		if(MCC_ENDPOINTS_EQUAL(endpoints[i], (*endpoint)))
 				endpoints[i].port = MCC_RESERVED_PORT_NUMBER;
 	}
 
@@ -199,7 +201,7 @@ int set_io_modes(int set_endpoint_command, MCC_ENDPOINT *current_endpoint, MCC_E
 	int new_block_mode = timeout_us == 0 ? O_NONBLOCK : 0;
 
 	// set the endpoint if not already
-	if(!ENDPOINTS_EQUAL((*current_endpoint), (*new_endpoint)))
+	if(!MCC_ENDPOINTS_EQUAL((*current_endpoint), (*new_endpoint)))
 	{
 		if(ioctl(fd, set_endpoint_command, new_endpoint) < 0)
 		{
