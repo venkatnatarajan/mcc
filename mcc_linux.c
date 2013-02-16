@@ -255,7 +255,7 @@ static int mcc_free_buffer(MCC_RECEIVE_BUFFER * buffer)
 	// wake yourself up again in case anyone here waiting for free buf
 	//wake_up_interruptible(&wait_queue);
 
-	return 0;
+	return MCC_SUCCESS;
 }
 
 
@@ -453,7 +453,7 @@ static long mcc_ioctl(struct file *f, unsigned cmd, unsigned long arg)
 		if(cmd == MCC_CREATE_ENDPOINT)
 		{
 			retval = mcc_register_endpoint(endpoint);
-			if(retval != MCC_ERR_ENDPOINT)
+			if(retval == MCC_SUCCESS)
 			{
 				retval = register_queue(endpoint);
 				if(retval != MCC_SUCCESS)
@@ -469,7 +469,8 @@ static long mcc_ioctl(struct file *f, unsigned cmd, unsigned long arg)
 				retval = mcc_remove_endpoint(endpoint);
 		}
 		mcc_sema4_release(MCC_SHMEM_SEMAPHORE_NUMBER);
-		break;
+
+		return retval == MCC_SUCCESS ? MCC_SUCCESS : -EINVAL;
 
 	case MCC_SET_RECEIVE_ENDPOINT:
 	case MCC_SET_SEND_ENDPOINT:
@@ -485,7 +486,7 @@ static long mcc_ioctl(struct file *f, unsigned cmd, unsigned long arg)
 		endpoint_p->core = endpoint.core;
 		endpoint_p->node = endpoint.node;
 		endpoint_p->port = endpoint.port;
-		break;
+		return MCC_SUCCESS;
 
 	case MCC_SET_MODE_LOAD_MQX_IMAGE:
 		if (copy_from_user(&priv_p->mqx_boot_info, buf, sizeof(priv_p->mqx_boot_info)))
@@ -508,31 +509,31 @@ static long mcc_ioctl(struct file *f, unsigned cmd, unsigned long arg)
 		}
 
 		priv_p->write_mode = MODE_IMAGE_LOAD;
-		break;
+		return MCC_SUCCESS;
 
 	case  MCC_BOOT_MQX_IMAGE:
 		//0x4006E028 - GPR2 Register write Image Entry Point as per the Memory Map File of the Binary
 		writel(priv_p->mqx_boot_info.phys_start_addr, MVF_IO_ADDRESS(0x4006E028));
 		// 0x4006B08C - CCM_CCOWR Register - Set bit 16 - AUX_CORE_WKUP to enable M4 clock.
 		writel(0x15a5a, MVF_IO_ADDRESS(0x4006B08C));
-		break;
+		return MCC_SUCCESS;
 
 	case MCC_SET_TIMEOUT:
 		if (copy_from_user(&priv_p->timeout_us, buf, sizeof(priv_p->timeout_us)))
 			return -EFAULT;
-		break;
+		return MCC_SUCCESS;
 
 	case MCC_GET_INFO:
 		if (copy_to_user(&info_p->version_string, &bookeeping_data->version_string, sizeof(info_p->version_string)))
 			return -EFAULT;
-		break;
+		return MCC_SUCCESS;
 
 	case MCC_SET_READ_MODE:
 		if (copy_from_user(&priv_p->read_mode, buf, sizeof(priv_p->read_mode)))
 			return -EFAULT;
 		if((priv_p->read_mode != MCC_READ_MODE_COPY) && (priv_p->read_mode != MCC_READ_MODE_NOCOPY))
 			return -EINVAL;
-		break;
+		return MCC_SUCCESS;
 
 	case MCC_FREE_RECEIVE_BUFFER:
 		if (copy_from_user(&offset, buf, sizeof(offset)))
@@ -540,7 +541,7 @@ static long mcc_ioctl(struct file *f, unsigned cmd, unsigned long arg)
 		offset += (unsigned int) bookeeping_data;
 
 		retval = mcc_free_buffer((MCC_RECEIVE_BUFFER *) offset);
-		break;
+		return retval;
 
 	case MCC_GET_QUEUE_INFO:
 		count = 0;
@@ -574,14 +575,12 @@ static long mcc_ioctl(struct file *f, unsigned cmd, unsigned long arg)
 		q_info.current_queue_length = count;
 		if (copy_to_user(buf, &q_info, sizeof(q_info)))
 			return -EFAULT;
-		break;
+		return MCC_SUCCESS;
 
 	default:
 		printk(KERN_ERR "Unknown ioctl command (0x%08X)\n", cmd);
-		retval = -ENOIOCTLCMD;
+		return -ENOIOCTLCMD;
 	}
-
-	return retval;
 }
 
 static int mcc_mmap(struct file *filp, struct vm_area_struct *vma)
