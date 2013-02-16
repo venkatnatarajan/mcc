@@ -25,6 +25,7 @@
 // TODO is this where this should go?
 #define SHARED_IRAM_START (MVF_IRAM_BASE_ADDR + 0x00040000)
 #define SHARED_IRAM_SIZE (64*1024)
+#define MCC_RESERVED_QUEUE_NUMBER  (0)
 
 /* sets the load adress and subsequent writes will be to load data there */
 struct mqx_boot_info_struct {

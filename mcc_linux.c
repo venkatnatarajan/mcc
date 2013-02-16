@@ -23,6 +23,7 @@
 #include <linux/fs.h>
 #include <linux/device.h>
 #include <linux/cdev.h>
+#include <linux/wait.h>
 
 #include <linux/slab.h>
 #include <mach/hardware.h>
@@ -63,13 +64,21 @@ struct mcc_private_data
 	MCC_READ_MODE read_mode;
 };
 
+struct mcc_queue_endpoint_map_table {
+	wait_queue_head_t* queue_p;
+	MCC_ENDPOINT endpoint;
+};
+
+typedef struct mcc_queue_endpoint_map_table MCC_QUEUE_ENDPOINT_MAP;
+
 static dev_t first;
 static struct cdev c_dev;
 static struct class *cl;
 
 static __iomem void *mscm_base = MVF_IO_ADDRESS(MVF_MSCM_BASE_ADDR);
 
-DECLARE_WAIT_QUEUE_HEAD(wait_queue);
+DECLARE_WAIT_QUEUE_HEAD(free_buffer_queue);
+MCC_QUEUE_ENDPOINT_MAP endpoint_read_queues[MCC_ATTR_MAX_RECEIVE_ENDPOINTS];
 
 static int other_cores[] = MCC_OTHER_CORES;
 
@@ -114,19 +123,79 @@ static int signal_freed(void)
 	return MCC_SUCCESS;
 }
 
+static int register_queue(MCC_ENDPOINT endpoint)
+{
+	int i = 0;
+	wait_queue_head_t* wait_queue = kmalloc(sizeof(wait_queue_head_t), GFP_KERNEL);
+
+	if(!wait_queue)
+		return -ENOMEM;
+
+	init_waitqueue_head(wait_queue);
+
+	for(i = 0; i < MCC_ATTR_MAX_RECEIVE_ENDPOINTS; i++) {
+
+		if(endpoint_read_queues[i].queue_p == MCC_RESERVED_QUEUE_NUMBER) {
+
+			endpoint_read_queues[i].endpoint.core = endpoint.core;
+			endpoint_read_queues[i].endpoint.node = endpoint.node;
+			endpoint_read_queues[i].endpoint.port = endpoint.port;
+			endpoint_read_queues[i].queue_p = wait_queue;
+			//printk("registering queue completed successfully for endpoint %d, %d, %d\n", endpoint_read_queues[i].endpoint.core,
+			//		endpoint_read_queues[i].endpoint.node, endpoint_read_queues[i].endpoint.port);
+			return MCC_SUCCESS;
+		}
+	}
+
+	return -EIO;
+}
+
+static int deregister_queue(MCC_ENDPOINT endpoint)
+{
+	int i = 0;
+
+	for(i = 0; i < MCC_ATTR_MAX_RECEIVE_ENDPOINTS; i++) {
+
+		if(MCC_ENDPOINTS_EQUAL(endpoint_read_queues[i].endpoint, endpoint) &&
+				(endpoint_read_queues[i].queue_p != MCC_RESERVED_QUEUE_NUMBER)) {
+
+			if(endpoint_read_queues[i].queue_p)
+				kfree(endpoint_read_queues[i].queue_p);
+			endpoint_read_queues[i].queue_p = MCC_RESERVED_QUEUE_NUMBER;
+			return MCC_SUCCESS;
+		}
+	}
+	return -EIO;
+}
 // ************************************ Interrupt handler *************************************************
 
 static irqreturn_t cpu_to_cpu_irq_handler(int irq, void *dev_id)
 {
 	MCC_SIGNAL signal;
+	int i = 0;
 
 	int interrupt_id = irq - MVF_INT_CPU_INT0;
 
-	wake_up_interruptible(&wait_queue);
-
-	// TODO order processing based on order in signal queue
-	// purger the signal queue
-	while(mcc_dequeue_signal(MCC_CORE_NUMBER, &signal));
+	while(mcc_dequeue_signal(MCC_CORE_NUMBER, &signal))
+	{
+		if(signal.type == BUFFER_FREED)
+		{
+			wake_up_interruptible(&free_buffer_queue);
+		}
+		else
+		{
+			for(i = 0; i < MCC_ATTR_MAX_RECEIVE_ENDPOINTS; i++)
+			{
+				if(MCC_ENDPOINTS_EQUAL(endpoint_read_queues[i].endpoint, signal.destination))
+				{
+					//printk("received message for endpoint %d, %d, %d\n", endpoint_read_queues[i].endpoint.core,
+					//		endpoint_read_queues[i].endpoint.node, endpoint_read_queues[i].endpoint.port);
+					wake_up_interruptible(endpoint_read_queues[i].queue_p);
+				}
+				break;
+			}
+		}
+	}
 
 	//Clear the interrupt status
 	MSCM_WRITE((MSCM_IRCPnIR_INT0_MASK<<interrupt_id), MSCM_IRCPnIR);
@@ -196,6 +265,7 @@ static ssize_t mcc_read(struct file *f, char __user *buf, size_t len, loff_t *of
 	MCC_RECEIVE_BUFFER * buffer;
 	MCC_RECEIVE_LIST * recv_list;
 	int copy_len = 0;
+	int i = 0;
 	int retval = 0;
 	unsigned int offset = 0;
 
@@ -212,19 +282,26 @@ static ssize_t mcc_read(struct file *f, char __user *buf, size_t len, loff_t *of
 	// block unless asked not to
 	if(!(f->f_flags & O_NONBLOCK))
 	{
-		if(priv_p->timeout_us == 0xFFFFFFFF)
+		for(i = 0; i < MCC_ATTR_MAX_RECEIVE_ENDPOINTS; i++)
 		{
-			if(wait_event_interruptible(wait_queue, recv_list->head))
-				return -ERESTARTSYS;
-		}
-		else
-		{
-			// return: 0 = timeout, >0 = woke up with that many jiffies left, <0 = error
-			retval = wait_event_interruptible_timeout(wait_queue, recv_list->head, usecs_to_jiffies(priv_p->timeout_us));
-			if(retval == 0)
-				return -ETIME;
-			else if(retval < 0)
-				return retval;
+			if(MCC_ENDPOINTS_EQUAL(endpoint_read_queues[i].endpoint, priv_p->recv_endpoint))
+			{
+				if(priv_p->timeout_us == 0xFFFFFFFF)
+				{
+					if(wait_event_interruptible(*endpoint_read_queues[i].queue_p, recv_list->head))
+						return -ERESTARTSYS;
+				}
+				else
+				{
+					// return: 0 = timeout, >0 = woke up with that many jiffies left, <0 = error
+					retval = wait_event_interruptible_timeout(*endpoint_read_queues[i].queue_p, recv_list->head, usecs_to_jiffies(priv_p->timeout_us));
+					if(retval == 0)
+						return -ETIME;
+					else if(retval < 0)
+						return retval;
+				}
+			}
+			break;
 		}
 	}
 
@@ -300,13 +377,13 @@ static ssize_t mcc_write(struct file *f, const char __user *buf, size_t len, lof
 	{
 		if(priv_p->timeout_us == 0xFFFFFFFF)
 		{
-			if(wait_event_interruptible(wait_queue, bookeeping_data->free_list.head))
+			if(wait_event_interruptible(free_buffer_queue, bookeeping_data->free_list.head))
 				return -ERESTARTSYS;
 		}
 		else
 		{
 			// return: 0 = timeout, >0 = woke up with that many jiffies left, <0 = error
-			retval = wait_event_interruptible_timeout(wait_queue, bookeeping_data->free_list.head, usecs_to_jiffies(priv_p->timeout_us));
+			retval = wait_event_interruptible_timeout(free_buffer_queue, bookeeping_data->free_list.head, usecs_to_jiffies(priv_p->timeout_us));
 			if(retval == 0)
 				return -ETIME;
 			else if(retval < 0)
@@ -373,8 +450,24 @@ static long mcc_ioctl(struct file *f, unsigned cmd, unsigned long arg)
 		if(mcc_sema4_grab(MCC_SHMEM_SEMAPHORE_NUMBER))
 			return -EBUSY;
 
-		retval = cmd == MCC_CREATE_ENDPOINT ? mcc_register_endpoint(endpoint) : mcc_remove_endpoint(endpoint);
-
+		if(cmd == MCC_CREATE_ENDPOINT)
+		{
+			retval = mcc_register_endpoint(endpoint);
+			if(retval != MCC_ERR_ENDPOINT)
+			{
+				retval = register_queue(endpoint);
+				if(retval != MCC_SUCCESS)
+				{
+					mcc_remove_endpoint(endpoint);
+				}
+			}
+		}
+		else
+		{
+			retval = deregister_queue(endpoint);
+			if(retval == MCC_SUCCESS)
+				retval = mcc_remove_endpoint(endpoint);
+		}
 		mcc_sema4_release(MCC_SHMEM_SEMAPHORE_NUMBER);
 		break;
 
@@ -468,10 +561,10 @@ static long mcc_ioctl(struct file *f, unsigned cmd, unsigned long arg)
 		}
 
 		// count the messages
-	        r_buf = (MCC_RECEIVE_BUFFER *)MQX_TO_VIRT(r_list->head);
+	        r_buf = (MCC_RECEIVE_BUFFER*)MQX_TO_VIRT(r_list->head);
 		while (r_buf) {
 			count++;
-			r_buf = (MCC_RECEIVE_BUFFER *)MQX_TO_VIRT(r_buf->next);
+			r_buf = (MCC_RECEIVE_BUFFER*)MQX_TO_VIRT(r_buf->next);
 		}	
 
 		// release the semaphore
@@ -522,7 +615,7 @@ static struct file_operations mcc_fops =
  
 static int __init mcc_init(void) /* Constructor */
 {
-	int count;
+	int count, k;
 
 	if (alloc_chrdev_region(&first, 0, 1, "mcc") < 0)
 	{
@@ -577,6 +670,10 @@ static int __init mcc_init(void) /* Constructor */
 			return -EIO;
 		}
 	}
+
+	//Initialize Wait Queue List -If called in mcc_open, everytime userspace opens a dev it will clear the queuelist
+	for(k = 0; k < MCC_ATTR_MAX_RECEIVE_ENDPOINTS; k++)
+		endpoint_read_queues[k].queue_p = MCC_RESERVED_QUEUE_NUMBER;
 
 print_bookeeping_data();
 	printk(KERN_INFO "mcc registered major=%d, sizeof(struct mcc_bookeeping_struct)=%d\n",MAJOR(first), sizeof(struct mcc_bookeeping_struct));
