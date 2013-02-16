@@ -51,8 +51,8 @@ static MCC_READ_MODE current_read_mode = MCC_READ_MODE_UNDEFINED;
  * \param[in] node Node number that will be used in endpoints created by this process.
  *
  * \return MCC_SUCCESS
- * \return MCC_ERR_SEMAPHORE (semaphore handling error)
- * \return MCC_ERR_INT (Interrupt registration error)
+ * \return MCC_ERR_DEV (cant open /dev/mcc - kernel module not loaded)
+ * \return MCC_ERR_NOMEM (Cant map shared memory)
 */
 int mcc_initialize(MCC_NODE node)
 {
@@ -67,12 +67,14 @@ int mcc_initialize(MCC_NODE node)
 	recv_endpoint.port = MCC_RESERVED_PORT_NUMBER;
 
 	fd = open("/dev/mcc", O_RDWR);
+	if(fd < 0)
+		return MCC_ERR_DEV;
 
 	bookeeping_p = (unsigned int) mmap(0, sizeof(MCC_BOOKEEPING_STRUCT), PROT_READ, MAP_SHARED, fd, 0);
 	if(bookeeping_p < 0)
-		return MCC_ERR_DEV;
+		return MCC_ERR_NOMEM;
 
-    return fd < 0 ? MCC_ERR_DEV : MCC_SUCCESS;
+    return MCC_SUCCESS;
 }
 
 /*!
@@ -83,6 +85,8 @@ int mcc_initialize(MCC_NODE node)
  * \param[in] node Node number to be deinitialized.
  *
  * \return MCC_SUCCESS
+ * \return MCC_ERR_DEV (internal driver error)
+ * \return MCC_ERR_ENDPOINT (invalid endpoint)
  * \return MCC_ERR_SEMAPHORE (semaphore handling error)
  */
 int mcc_destroy(MCC_NODE node)
@@ -93,8 +97,19 @@ int mcc_destroy(MCC_NODE node)
 	for(i=0; i<MCC_ATTR_MAX_RECEIVE_ENDPOINTS; i++)
 	{
 		if(ENDPOINT_IN_USE(endpoints[i]))
-			ioctl(fd, MCC_DESTROY_ENDPOINT, &endpoints[i]);
+		{
+			if(ioctl(fd, MCC_DESTROY_ENDPOINT, &endpoints[i]) < 0)
+			{
+				if(errno == EFAULT)
+					return MCC_ERR_DEV;
+				if(errno == EBUSY)
+					return MCC_ERR_SEMAPHORE;
+				if(errno == EINVAL)
+					return MCC_ERR_ENDPOINT;
+			}
+		}
 	}
+
 
     close(fd);
 
@@ -112,6 +127,7 @@ int mcc_destroy(MCC_NODE node)
  * \param[in] port Port number.
  *
  * \return MCC_SUCCESS
+ * \return MCC_ERR_DEV (internal driver error)
  * \return MCC_ERR_NOMEM (maximum number of endpoints exceeded)
  * \return MCC_ERR_ENDPOINT (invalid value for core, node, or port)
  * \return MCC_ERR_SEMAPHORE (semaphore handling error)
@@ -136,8 +152,15 @@ int mcc_create_endpoint(MCC_ENDPOINT *endpoint, MCC_PORT port)
 	if(slot < 0)
 		return MCC_ERR_NOMEM;
 
-	if(ioctl(fd, MCC_CREATE_ENDPOINT, endpoint))
-		return MCC_ERR_ENDPOINT;
+	if(ioctl(fd, MCC_CREATE_ENDPOINT, endpoint) < 0)
+	{
+		if(errno == EFAULT)
+			return MCC_ERR_DEV;
+		if(errno == EBUSY)
+			return MCC_ERR_SEMAPHORE;
+		if(errno == EINVAL)
+			return MCC_ERR_ENDPOINT;
+	}
 
 	endpoints[slot] = *endpoint;
 
@@ -152,6 +175,7 @@ int mcc_create_endpoint(MCC_ENDPOINT *endpoint, MCC_PORT port)
  * \param[in] endpoint Pointer to the endpoint triplet to be deleted.
  *
  * \return MCC_SUCCESS
+ * \return MCC_ERR_DEV (internal driver error)
  * \return MCC_ERR_ENDPOINT (the endpoint doesnt exist)
  * \return MCC_ERR_SEMAPHORE (semaphore handling error)
 */
@@ -159,8 +183,15 @@ int mcc_destroy_endpoint(MCC_ENDPOINT *endpoint)
 {
 	int i;
 
-	if(ioctl(fd, MCC_DESTROY_ENDPOINT, endpoint))
-		return MCC_ERR_ENDPOINT;
+	if(ioctl(fd, MCC_DESTROY_ENDPOINT, endpoint) < 0)
+	{
+		if(errno == EFAULT)
+			return MCC_ERR_DEV;
+		if(errno == EBUSY)
+			return MCC_ERR_SEMAPHORE;
+		if(errno == EINVAL)
+			return MCC_ERR_ENDPOINT;
+	}
 
 	for(i=0; i<MCC_ATTR_MAX_RECEIVE_ENDPOINTS; i++)
 	{
@@ -181,21 +212,29 @@ int set_io_modes(int set_endpoint_command, MCC_ENDPOINT *current_endpoint, MCC_E
 	// set the endpoint if not already
 	if(!ENDPOINTS_EQUAL((*current_endpoint), (*new_endpoint)))
 	{
-		if(ioctl(fd, set_endpoint_command, new_endpoint))
-			return MCC_ERR_ENDPOINT;
+		if(ioctl(fd, set_endpoint_command, new_endpoint) < 0)
+		{
+			if(errno == EFAULT)
+				return MCC_ERR_DEV;
+			if(errno == EBUSY)
+				return MCC_ERR_SEMAPHORE;
+			if(errno == EINVAL)
+				return MCC_ERR_ENDPOINT;
+		}
+
 		*current_endpoint = *new_endpoint;
 	}
 
 	//check if timeout changed
 	if(timeout_us != current_timeout_us)
 	{
-		if(ioctl(fd, MCC_SET_TIMEOUT, &timeout_us))
-			return MCC_ERR_INVAL;
+		if(ioctl(fd, MCC_SET_TIMEOUT, &timeout_us) < 0)
+			return MCC_ERR_DEV;
 
 		if((timeout_us == 0) || (current_timeout_us == 0))
 		{
 			if(fcntl(fd, F_SETFL, new_block_mode))
-				return MCC_ERR_INVAL;
+				return MCC_ERR_DEV;
 		}
 		current_timeout_us = timeout_us;
 	}
@@ -214,6 +253,7 @@ int set_io_modes(int set_endpoint_command, MCC_ENDPOINT *current_endpoint, MCC_E
  * \param[in] timeout_us Timeout, in microseconds, to wait for a free buffer. A value of 0 means dont wait (non-blocking call), 0xffffffff means wait forever (blocking call).
  *
  * \return MCC_SUCCESS
+ * \return MCC_ERR_DEV (internal driver error)
  * \return MCC_ERR_ENDPOINT (the endpoint does not exist)
  * \return MCC_ERR_SEMAPHORE (semaphore handling error)
  * \return MCC_ERR_INVAL (an invalid address has been supplied for msg or the msg_size exceeds the size of a data buffer)
@@ -230,10 +270,23 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
 	// do the write
 	errno = 0;
 	write(fd, msg, msg_size);
-	if(errno)
-		perror("mcc_send");
 
-	return errno == 0 ? MCC_SUCCESS : MCC_ERR_INVAL;
+	switch (errno)
+	{
+	case -EFAULT:
+		return MCC_ERR_DEV;
+	case -EBUSY:
+		return MCC_ERR_SEMAPHORE;
+	case -EINVAL:
+		return MCC_ERR_ENDPOINT;
+	case -ETIME:
+		return MCC_ERR_TIMEOUT;
+	case -ENOMEM:
+		return MCC_ERR_NOMEM;
+	case 0:
+		return MCC_SUCCESS;
+	}
+	return MCC_ERR_DEV;
 }
 
 
@@ -252,6 +305,7 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
  * \param[in] timeout_us Timeout, in microseconds, to wait for a free buffer. A value of 0 means dont wait (non-blocking call), 0xffffffff means wait forever (blocking call).
  *
  * \return MCC_SUCCESS
+ * \return MCC_ERR_DEV (internal driver error)
  * \return MCC_ERR_ENDPOINT (the endpoint does not exist)
  * \return MCC_ERR_SEMAPHORE (semaphore handling error)
  * \return MCC_ERR_TIMEOUT (timeout exceeded before a buffer became available)
@@ -273,10 +327,23 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
 
 	errno = 0;
 	*recv_size = read(fd, buffer, buffer_size);
-	if(errno)
-		perror("mcc_recv_copy");
 
-	return errno != 0 ? MCC_ERR_INVAL : MCC_SUCCESS;
+	switch (errno)
+	{
+	case -EFAULT:
+		return MCC_ERR_DEV;
+	case -EBUSY:
+		return MCC_ERR_SEMAPHORE;
+	case -EINVAL:
+		return MCC_ERR_ENDPOINT;
+	case -ETIME:
+		return MCC_ERR_TIMEOUT;
+	case -ENOMEM:
+		return MCC_ERR_NOMEM;
+	case 0:
+		return MCC_SUCCESS;
+	}
+	return MCC_ERR_DEV;
 }
 
 /*!
@@ -293,6 +360,7 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
  * \param[in] timeout_us Timeout, in microseconds, to wait for a free buffer. A value of 0 means dont wait (non-blocking call), 0xffffffff means wait forever (blocking call).
  *
  * \return MCC_SUCCESS
+ * \return MCC_ERR_DEV (internal driver error)
  * \return MCC_ERR_ENDPOINT (the endpoint does not exist)
  * \return MCC_ERR_SEMAPHORE (semaphore handling error)
  * \return MCC_ERR_TIMEOUT (timeout exceeded before a buffer became available)
@@ -316,14 +384,25 @@ int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_
 
 	errno = 0;
 	*recv_size = read(fd, &offset, 4);
-	if(errno) {
-		perror("mcc_recv_copy");
-		return MCC_ERR_INVAL;
-	}
 
-	// data pointer = bookeeping offset of the base of the buffer + offset into the data part of the buffer
-	*buffer_p = (void *)(offset + bookeeping_p + offsetof(MCC_RECEIVE_BUFFER, data));
-	return MCC_SUCCESS;
+	switch (errno)
+	{
+	case -EFAULT:
+		return MCC_ERR_DEV;
+	case -EBUSY:
+		return MCC_ERR_SEMAPHORE;
+	case -EINVAL:
+		return MCC_ERR_ENDPOINT;
+	case -ETIME:
+		return MCC_ERR_TIMEOUT;
+	case -ENOMEM:
+		return MCC_ERR_NOMEM;
+	case 0:
+		// data pointer = bookeeping offset of the base of the buffer + offset into the data part of the buffer
+		*buffer_p = (void *)(offset + bookeeping_p + offsetof(MCC_RECEIVE_BUFFER, data));
+		return MCC_SUCCESS;
+	}
+	return MCC_ERR_DEV;
 }
 
 /*!
@@ -347,7 +426,7 @@ int mcc_msgs_available(MCC_ENDPOINT *endpoint, unsigned int *num_msgs)
 	q_info.endpoint.node = endpoint->node;
 	q_info.endpoint.port = endpoint->port;
 
-	if(ioctl(fd, MCC_GET_QUEUE_INFO, &q_info))
+	if(ioctl(fd, MCC_GET_QUEUE_INFO, &q_info) < 0)
 		return MCC_ERR_INVAL;
 
 	*num_msgs = q_info.current_queue_length;
@@ -372,7 +451,7 @@ int mcc_msgs_available(MCC_ENDPOINT *endpoint, unsigned int *num_msgs)
 int mcc_free_buffer(MCC_ENDPOINT *endpoint, void *buffer)
 {
 	unsigned int offset = (unsigned int)buffer - (bookeeping_p + offsetof(MCC_RECEIVE_BUFFER, data));
-	if(ioctl(fd, MCC_FREE_RECEIVE_BUFFER, &offset))
+	if(ioctl(fd, MCC_FREE_RECEIVE_BUFFER, &offset) < 0)
 		return MCC_ERR_INVAL;
 	return MCC_SUCCESS;
 }
@@ -386,10 +465,20 @@ int mcc_free_buffer(MCC_ENDPOINT *endpoint, void *buffer)
  * \param[out] info_data Pointer to the MCC_INFO_STRUCT structure to hold returned data.
  *
  * \return MCC_SUCCESS
+ * \return MCC_ERR_DEV (internal driver error)
  * \return MCC_ERR_SEMAPHORE (semaphore handling error)
  */
 int mcc_get_info(MCC_NODE node, MCC_INFO_STRUCT* info_data)
 {
-	return ioctl(fd, MCC_GET_INFO, info_data);
+		if(ioctl(fd, MCC_GET_INFO, info_data) < 0)
+		{
+			if(errno == EFAULT)
+				return MCC_ERR_DEV;
+			if(errno == EBUSY)
+				return MCC_ERR_SEMAPHORE;
+			if(errno == EINVAL)
+				return MCC_ERR_ENDPOINT;
+		}
+		return MCC_SUCCESS;
 }
 
