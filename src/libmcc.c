@@ -73,6 +73,13 @@ int mcc_initialize(MCC_NODE node)
 	if(bookeeping_p < 0)
 		return MCC_ERR_NOMEM;
 
+	if(ioctl(fd, MCC_SET_NODE, &node) < 0)
+	{
+		if(errno == EFAULT)
+			return MCC_ERR_DEV;
+	}
+
+
     return MCC_SUCCESS;
 }
 
