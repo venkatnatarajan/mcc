@@ -29,9 +29,6 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 
-#define ENDPOINTS_EQUAL(e1, e2) ((e1.core == e2.core) && (e1.node == e2.node) && (e1.port == e2.port))
-#define ENDPOINT_IN_USE(e) (e.port != MCC_RESERVED_PORT_NUMBER)
-
 // local, private data
 static int fd = -1;	// the file descriptor used throughout
 static unsigned int bookeeping_p;
@@ -141,17 +138,6 @@ int mcc_create_endpoint(MCC_ENDPOINT *endpoint, MCC_PORT port)
 	endpoint->node = this_node;
 	endpoint->port = port;
 
-	for(i=0; i<MCC_ATTR_MAX_RECEIVE_ENDPOINTS; i++)
-	{
-		if(!ENDPOINT_IN_USE(endpoints[i]))
-		{
-			slot = i;
-			break;
-		}
-	}
-	if(slot < 0)
-		return MCC_ERR_NOMEM;
-
 	if(ioctl(fd, MCC_CREATE_ENDPOINT, endpoint) < 0)
 	{
 		if(errno == EFAULT)
@@ -176,12 +162,15 @@ int mcc_create_endpoint(MCC_ENDPOINT *endpoint, MCC_PORT port)
  *
  * \return MCC_SUCCESS
  * \return MCC_ERR_DEV (internal driver error)
- * \return MCC_ERR_ENDPOINT (the endpoint doesnt exist)
+ * \return MCC_ERR_ENDPOINT (the endpoint doesn't exist)
  * \return MCC_ERR_SEMAPHORE (semaphore handling error)
 */
 int mcc_destroy_endpoint(MCC_ENDPOINT *endpoint)
 {
 	int i;
+
+	if(endpoint->node != this_node)
+		return MCC_ERR_ENDPOINT;
 
 	if(ioctl(fd, MCC_DESTROY_ENDPOINT, endpoint) < 0)
 	{
@@ -427,7 +416,7 @@ int mcc_msgs_available(MCC_ENDPOINT *endpoint, unsigned int *num_msgs)
 	q_info.endpoint.port = endpoint->port;
 
 	if(ioctl(fd, MCC_GET_QUEUE_INFO, &q_info) < 0)
-		return MCC_ERR_INVAL;
+		return MCC_ERR_ENDPOINT;
 
 	*num_msgs = q_info.current_queue_length;
 
