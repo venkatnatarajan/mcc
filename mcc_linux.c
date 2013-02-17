@@ -55,6 +55,7 @@ typedef enum write_mode_enum {MODE_IMAGE_LOAD, MODE_MCC} WRITE_MODE;
 struct mcc_private_data
 {
 	int idx;
+	MCC_NODE this_node;
 	MCC_ENDPOINT recv_endpoint;
 	MCC_ENDPOINT send_endpoint;
 	WRITE_MODE write_mode;
@@ -221,14 +222,36 @@ static int mcc_open(struct inode *i, struct file *f)
 	return MCC_SUCCESS;
 }
 
-static int mcc_close(struct inode *i, struct file *f)
+static int mcc_close(struct inode *inode, struct file *f)
 {
+	int i, retval;
 	struct mcc_private_data *priv_p = f->private_data;
 
 	if(priv_p->write_mode == MODE_IMAGE_LOAD)
 	{
 		iounmap(priv_p->virt_load_addr);
 		release_mem_region(priv_p->mqx_boot_info.phys_load_addr, MAX_LOAD_SIZE);
+	}
+
+	// else cleamn up all the endpoints
+	else
+	{
+		if(mcc_sema4_grab(MCC_SHMEM_SEMAPHORE_NUMBER))
+			return -EBUSY;
+
+		// for every endpoint in this node
+	        for(i = 0; i < MCC_ATTR_MAX_RECEIVE_ENDPOINTS; i++) {
+
+       		         if(bookeeping_data->endpoint_table[i].endpoint.port != MCC_RESERVED_PORT_NUMBER) {
+       		                 if(bookeeping_data->endpoint_table[i].endpoint.node == priv_p->this_node) {
+					retval = deregister_queue(bookeeping_data->endpoint_table[i].endpoint);
+					if(retval == MCC_SUCCESS)
+						retval = mcc_remove_endpoint(bookeeping_data->endpoint_table[i].endpoint);
+				}
+       		         }
+		}
+
+		mcc_sema4_release(MCC_SHMEM_SEMAPHORE_NUMBER);
 	}
 
 	if(f->private_data)
@@ -435,6 +458,7 @@ static long mcc_ioctl(struct file *f, unsigned cmd, unsigned long arg)
 	MCC_RECEIVE_LIST * r_list;
 	MCC_RECEIVE_BUFFER * r_buf;
 	int count;
+	MCC_NODE this_node;
 
 
 	int retval = 0;
@@ -442,7 +466,26 @@ static long mcc_ioctl(struct file *f, unsigned cmd, unsigned long arg)
 	switch(cmd)
 	{
 
+	case MCC_GET_NODE:
+		if (copy_to_user(buf, &priv_p->this_node, sizeof(this_node)))
+			return -EFAULT;
+		return MCC_SUCCESS;
+
+	case MCC_SET_NODE:
+		if (copy_from_user(&this_node, buf, sizeof(this_node)))
+			return -EFAULT;
+		priv_p->this_node = this_node;
+		return MCC_SUCCESS;
+
 	case MCC_CREATE_ENDPOINT:
+		if(mcc_sema4_grab(MCC_SHMEM_SEMAPHORE_NUMBER))
+			return -EBUSY;
+		{
+			retval = deregister_queue(endpoint);
+			if(retval == MCC_SUCCESS)
+				retval = mcc_remove_endpoint(endpoint);
+		}
+		mcc_sema4_release(MCC_SHMEM_SEMAPHORE_NUMBER);
 	case MCC_DESTROY_ENDPOINT:
 		if (copy_from_user(&endpoint, buf, sizeof(endpoint)))
 			return -EFAULT;
