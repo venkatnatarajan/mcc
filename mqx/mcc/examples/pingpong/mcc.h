@@ -2,7 +2,7 @@
 #define __mcc_h__
 /**HEADER********************************************************************
 * 
-* Copyright (c) 2012 Freescale Semiconductor;
+* Copyright (c) 2013 Freescale Semiconductor;
 * All Rights Reserved                       
 *
 *************************************************************************** 
@@ -28,20 +28,22 @@
 * Comments:
 *
 *   This file contains the source for the common definitions for the
-*   MCC example
+*   MCC pingpong example
 *
 *END************************************************************************/
 
-#define MAIN_TTN           10
-#define RESPONDER_TTN      11
+#define MAIN_TTN               (10)
+#define RESPONDER_TTN          (11)
 
-#define MCC_MQX_NODE_A5 1
-#define MCC_MQX_NODE_M4 2
+#define MCC_MQX_NODE_A5        (0)
+#define MCC_MQX_NODE_M4        (0)
+
+#define MCC_MQX_SENDER_PORT    (1)
+#define MCC_MQX_RESPONDER_PORT (2)
 
 typedef struct the_message
 {
-//   MESSAGE_HEADER_STRUCT  HEADER;
-   uint_32                DATA;
+   uint_32  DATA;
 } THE_MESSAGE, _PTR_ THE_MESSAGE_PTR;
 
 #endif

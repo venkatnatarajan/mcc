@@ -52,6 +52,9 @@ const char * const version_string = MCC_VERSION_STRING;
  * \return MCC_SUCCESS
  * \return MCC_ERR_SEMAPHORE (semaphore handling error)
  * \return MCC_ERR_INT (Interrupt registration error)
+ *
+ * \see mcc_destroy
+ * \see MCC_BOOKEEPING_STRUCT
  */
 int mcc_initialize(MCC_NODE node)
 {
@@ -128,6 +131,8 @@ int mcc_initialize(MCC_NODE node)
  *
  * \return MCC_SUCCESS
  * \return MCC_ERR_SEMAPHORE (semaphore handling error)
+ *
+ * \see mcc_initialize
  */
 int mcc_destroy(MCC_NODE node)
 {
@@ -170,7 +175,7 @@ int mcc_destroy(MCC_NODE node)
  * \brief This function creates an endpoint.
  *
  * Create an endpoint on the local node with the specified port number.
- * The core and node provided in endpoint must match the caller’s core and
+ * The core and node provided in endpoint must match the caller's core and
  * node and the port argument must match the endpoint port.
  *
  * \param[out] endpoint Pointer to the endpoint triplet to be created.
@@ -180,6 +185,9 @@ int mcc_destroy(MCC_NODE node)
  * \return MCC_ERR_NOMEM (maximum number of endpoints exceeded)
  * \return MCC_ERR_ENDPOINT (invalid value for core, node, or port)
  * \return MCC_ERR_SEMAPHORE (semaphore handling error)
+ *
+ * \see mcc_destroy_endpoint
+ * \see MCC_ENDPOINT
  */
 int mcc_create_endpoint(MCC_ENDPOINT *endpoint, MCC_PORT port)
 {
@@ -216,8 +224,11 @@ int mcc_create_endpoint(MCC_ENDPOINT *endpoint, MCC_PORT port)
  * \param[in] endpoint Pointer to the endpoint triplet to be deleted.
  *
  * \return MCC_SUCCESS
- * \return MCC_ERR_ENDPOINT (the endpoint doesn’t exist)
+ * \return MCC_ERR_ENDPOINT (the endpoint doesn't exist)
  * \return MCC_ERR_SEMAPHORE (semaphore handling error)
+ *
+ * \see mcc_create_endpoint
+ * \see MCC_ENDPOINT
  */
 int mcc_destroy_endpoint(MCC_ENDPOINT *endpoint)
 {
@@ -249,7 +260,7 @@ int mcc_destroy_endpoint(MCC_ENDPOINT *endpoint)
  * \param[in] endpoint Pointer to the receiving endpoint to send to.
  * \param[in] msg Pointer to the message to be sent.
  * \param[in] msg_size Size of the message to be sent in bytes.
- * \param[in] timeout_us Timeout, in microseconds, to wait for a free buffer. A value of 0 means don’t wait (non-blocking call), 0xffffffff means wait forever (blocking call).
+ * \param[in] timeout_us Timeout, in microseconds, to wait for a free buffer. A value of 0 means don't wait (non-blocking call), 0xffffffff means wait forever (blocking call).
  *
  * \return MCC_SUCCESS
  * \return MCC_ERR_ENDPOINT (the endpoint does not exist)
@@ -258,6 +269,10 @@ int mcc_destroy_endpoint(MCC_ENDPOINT *endpoint)
  * \return MCC_ERR_TIMEOUT (timeout exceeded before a buffer became available)
  * \return MCC_ERR_NOMEM (no free buffer available and timeout_us set to 0)
  * \return MCC_ERR_SQ_FULL (signal queue is full)
+ *
+ * \see mcc_recv_copy
+ * \see mcc_recv_nocopy
+ * \see MCC_ENDPOINT
  */
 int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned int timeout_us)
 {
@@ -280,15 +295,6 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
     return_value = mcc_get_semaphore();
     if(return_value != MCC_SUCCESS)
      	return return_value;
-
-    /* Get list of buffers kept by the particular endpoint */
-    list = mcc_get_endpoint_list(*endpoint);
-
-    if(list == null) {
-    	/* The endpoint does not exists (has not been registered so far), return immediately - error */
-    	mcc_release_semaphore();
-    	return MCC_ERR_ENDPOINT;
-    }
 
     /* Dequeue the buffer from the free list */
     MCC_DCACHE_INVALIDATE_MLINES((void*)&bookeeping_data->free_list, sizeof(MCC_RECEIVE_LIST*));
@@ -353,6 +359,20 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
     if(return_value != MCC_SUCCESS)
      	return return_value;
 
+    /* Get list of buffers kept by the particular endpoint */
+    list = mcc_get_endpoint_list(*endpoint);
+
+    if(list == null) {
+    	/* The endpoint does not exists (has not been registered so far), 
+         free the buffer and return immediately - error */
+        /* Enqueue the buffer back into the free list */
+        MCC_DCACHE_INVALIDATE_MLINES((void*)&bookeeping_data->free_list, sizeof(MCC_RECEIVE_LIST*));
+        mcc_queue_buffer(&bookeeping_data->free_list, buf);
+      
+    	mcc_release_semaphore();
+    	return MCC_ERR_ENDPOINT;
+    }
+
     /* Enqueue the buffer into the endpoint buffer list */
     mcc_queue_buffer(list, buf);
 
@@ -390,12 +410,16 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
  * \param[in] buffer Pointer to the user-app. buffer data will be copied into.
  * \param[in] buffer_size The maximum number of bytes to copy.
  * \param[out] recv_size Pointer to an MCC_MEM_SIZE that will contain the number of bytes actually copied into the buffer.
- * \param[in] timeout_us Timeout, in microseconds, to wait for a free buffer. A value of 0 means don’t wait (non-blocking call), 0xffffffff means wait forever (blocking call).
+ * \param[in] timeout_us Timeout, in microseconds, to wait for a free buffer. A value of 0 means don't wait (non-blocking call), 0xffffffff means wait forever (blocking call).
  *
  * \return MCC_SUCCESS
  * \return MCC_ERR_ENDPOINT (the endpoint does not exist)
  * \return MCC_ERR_SEMAPHORE (semaphore handling error)
  * \return MCC_ERR_TIMEOUT (timeout exceeded before a buffer became available)
+ *
+ * \see mcc_send
+ * \see mcc_recv_nocopy
+ * \see MCC_ENDPOINT
  */
 int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size, MCC_MEM_SIZE *recv_size, unsigned int timeout_us)
 {
@@ -513,12 +537,16 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
  * \param[in] endpoint Pointer to the receiving endpoint to receive from.
  * \param[out] buffer_p Pointer to the MCC buffer of the shared memory where the received data is stored.
  * \param[out] recv_size Pointer to an MCC_MEM_SIZE that will contain the number of valid bytes in the buffer.
- * \param[in] timeout_us Timeout, in microseconds, to wait for a free buffer. A value of 0 means don’t wait (non-blocking call), 0xffffffff means wait forever (blocking call).
+ * \param[in] timeout_us Timeout, in microseconds, to wait for a free buffer. A value of 0 means don't wait (non-blocking call), 0xffffffff means wait forever (blocking call).
  *
  * \return MCC_SUCCESS
  * \return MCC_ERR_ENDPOINT (the endpoint does not exist)
  * \return MCC_ERR_SEMAPHORE (semaphore handling error)
  * \return MCC_ERR_TIMEOUT (timeout exceeded before a buffer became available)
+ *
+ * \see mcc_send
+ * \see mcc_recv_copy
+ * \see MCC_ENDPOINT
  */
 int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_size, unsigned int timeout_us)
 {
@@ -604,6 +632,10 @@ int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_
  * \return MCC_SUCCESS
  * \return MCC_ERR_ENDPOINT (the endpoint does not exist)
  * \return MCC_ERR_SEMAPHORE (semaphore handling error)
+ *
+ * \see mcc_recv_copy
+ * \see mcc_recv_nocopy
+ * \see MCC_ENDPOINT
  */
 int mcc_msgs_available(MCC_ENDPOINT *endpoint, unsigned int *num_msgs)
 {
@@ -618,7 +650,8 @@ int mcc_msgs_available(MCC_ENDPOINT *endpoint, unsigned int *num_msgs)
 		return return_value;
 
     /* Get list of buffers kept by the particular endpoint */
-    if(!(list = mcc_get_endpoint_list(*endpoint))) {
+	list = mcc_get_endpoint_list(*endpoint);
+	if(list == null) {
     	/* The endpoint does not exists (has not been registered so far), return immediately - error */
     	mcc_release_semaphore();
     	return MCC_ERR_ENDPOINT;
@@ -652,6 +685,9 @@ int mcc_msgs_available(MCC_ENDPOINT *endpoint, unsigned int *num_msgs)
  * \return MCC_SUCCESS
  * \return MCC_ERR_ENDPOINT (the endpoint does not exist)
  * \return MCC_ERR_SEMAPHORE (semaphore handling error)
+ *
+ * \see mcc_recv_nocopy
+ * \see MCC_ENDPOINT
  */
 int mcc_free_buffer(MCC_ENDPOINT *endpoint, void *buffer)
 {
@@ -667,7 +703,8 @@ int mcc_free_buffer(MCC_ENDPOINT *endpoint, void *buffer)
 		return return_value;
 
     /* Get list of buffers kept by the particular endpoint */
-    if(!(list = mcc_get_endpoint_list(*endpoint))) {
+	list = mcc_get_endpoint_list(*endpoint);
+	if(list == null) {
     	/* The endpoint does not exists (has not been registered so far), return immediately - error */
     	mcc_release_semaphore();
     	return MCC_ERR_ENDPOINT;
@@ -718,6 +755,8 @@ int mcc_free_buffer(MCC_ENDPOINT *endpoint, void *buffer)
  *
  * \return MCC_SUCCESS
  * \return MCC_ERR_SEMAPHORE (semaphore handling error)
+ *
+ * \see MCC_INFO_STRUCT
  */
 int mcc_get_info(MCC_NODE node, MCC_INFO_STRUCT* info_data)
 {
@@ -725,15 +764,15 @@ int mcc_get_info(MCC_NODE node, MCC_INFO_STRUCT* info_data)
 
     /* Semaphore-protected section start */
     return_value = mcc_get_semaphore();
-	if(return_value != MCC_SUCCESS)
-		return return_value;
+    if(return_value != MCC_SUCCESS)
+        return return_value;
 
-	mcc_memcpy(bookeeping_data->version_string, (void*)info_data->version_string, (unsigned int)sizeof(bookeeping_data->version_string));
+    mcc_memcpy(bookeeping_data->version_string, (void*)info_data->version_string, (unsigned int)sizeof(bookeeping_data->version_string));
 
-	/* Semaphore-protected section end */
+    /* Semaphore-protected section end */
     return_value = mcc_release_semaphore();
     if(return_value != MCC_SUCCESS)
-     	return return_value;
+        return return_value;
 
     return return_value;
 }

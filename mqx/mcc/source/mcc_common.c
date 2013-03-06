@@ -89,7 +89,7 @@ int mcc_register_endpoint(MCC_ENDPOINT endpoint)
  * \param[in] endpoint Pointer to the endpoint structure.
  *
  * \return MCC_SUCCESS
- * \return MCC_ERR_ENDPOINT (the endpoint doesn’t exist)
+ * \return MCC_ERR_ENDPOINT (the endpoint doesn't exist)
  */
 int mcc_remove_endpoint(MCC_ENDPOINT endpoint)
 {

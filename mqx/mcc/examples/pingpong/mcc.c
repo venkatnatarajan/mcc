@@ -1,6 +1,6 @@
 /**HEADER********************************************************************
 *
-* Copyright (c) 2012 Freescale Semiconductor;
+* Copyright (c) 2013 Freescale Semiconductor;
 * All Rights Reserved
 *
 ***************************************************************************
@@ -25,7 +25,7 @@
 *
 * Comments:
 *
-*   This file contains the source for one of the MCC program examples.
+*   This file contains the source for one of the MCC pingpong examples.
 *
 *END************************************************************************/
 
@@ -36,6 +36,7 @@
 #include "mcc_common.h"
 #include "mcc_api.h"
 #include "mcc_mqx.h"
+#include <string.h>
 
 #include <core_mutex.h>
 
@@ -48,7 +49,10 @@
 #error This application requires BSP_DEFAULT_IO_CHANNEL to be not NULL. Please set corresponding BSPCFG_ENABLE_TTYx to non-zero in user_config.h and recompile BSP with this option.
 #endif
 
-
+/* Application-specific settings */
+/* 1: Blocking mode (task is blocked when no new message is available)
+ * 0: Non-blocking mode (task is waiting for a new message in a spin loop) */
+#define MCC_APP_BLOCKING_MODE  (1)
 
 extern void main_task(uint_32);
 extern void responder_task(uint_32);
@@ -69,8 +73,8 @@ TASK_TEMPLATE_STRUCT  MQX_template_list[] =
 };
 #endif
 
-MCC_ENDPOINT    mqx_endpoint_a5 = {0,0,1};
-MCC_ENDPOINT    mqx_endpoint_m4 = {1,0,2};
+MCC_ENDPOINT    mqx_endpoint_a5 = {0,MCC_MQX_NODE_A5,MCC_MQX_SENDER_PORT};
+MCC_ENDPOINT    mqx_endpoint_m4 = {1,MCC_MQX_NODE_M4,MCC_MQX_RESPONDER_PORT};
 
 /*TASK*----------------------------------------------------------
 *
@@ -86,10 +90,12 @@ void main_task(uint_32 node_num)
 {
     THE_MESSAGE     msg;
     MCC_MEM_SIZE    num_of_received_bytes;
-    unsigned int    num_available_msgs;
     CORE_MUTEX_PTR  coremutex_app_ptr;
     MCC_INFO_STRUCT mcc_info;
     int             ret_value;
+#if !MCC_APP_BLOCKING_MODE
+    unsigned int    num_available_msgs;
+#endif
 
     /* create core mutex used in the app. for accessing the serial console */
     coremutex_app_ptr = _core_mutex_create( 0, MCC_PRINTF_SEMAPHORE_NUMBER, MQX_TASK_QUEUE_FIFO );
@@ -104,7 +110,7 @@ void main_task(uint_32 node_num)
         mcc_destroy(node_num);
         _task_block();
     }
-    ret_value = mcc_create_endpoint(&mqx_endpoint_a5, 1); //TODO create macro for port number, avoid use of MCC_RESERVED_PORT_NUMBER
+    ret_value = mcc_create_endpoint(&mqx_endpoint_a5, MCC_MQX_SENDER_PORT);
 
     _core_mutex_lock(coremutex_app_ptr);
     printf("\n\n\nMain task started, MCC version is %s\n", mcc_info.version_string);
@@ -114,13 +120,15 @@ void main_task(uint_32 node_num)
         /* wait until the remote endpoint is created by the other core */
         while(MCC_ERR_ENDPOINT == mcc_send(&mqx_endpoint_m4, &msg, sizeof(THE_MESSAGE), 0xffffffff)) {
         }
-#if 0 //polled mode
+#if MCC_APP_BLOCKING_MODE
+        ret_value = mcc_recv_copy(&mqx_endpoint_a5, &msg, sizeof(THE_MESSAGE), &num_of_received_bytes, 0xffffffff);
+#else
         mcc_msgs_available(&mqx_endpoint_a5, &num_available_msgs);
         while(num_available_msgs==0) {
         	mcc_msgs_available(&mqx_endpoint_a5, &num_available_msgs);
         }
+        ret_value = mcc_recv_copy(&mqx_endpoint_a5, &msg, sizeof(THE_MESSAGE), &num_of_received_bytes, 0);
 #endif
-        ret_value = mcc_recv_copy(&mqx_endpoint_a5, &msg, sizeof(THE_MESSAGE), &num_of_received_bytes, 0xffffffff);
         if(MCC_SUCCESS != ret_value) {
             _core_mutex_lock(coremutex_app_ptr);
             printf("Main task receive error: %i\n", ret_value);
@@ -148,10 +156,12 @@ void responder_task(uint_32 node_num)
 {
     THE_MESSAGE     msg;
     MCC_MEM_SIZE    num_of_received_bytes;
-    unsigned int    num_available_msgs;
     CORE_MUTEX_PTR  coremutex_app_ptr;
     MCC_INFO_STRUCT mcc_info;
     int             ret_value;
+#if !MCC_APP_BLOCKING_MODE
+    unsigned int    num_available_msgs;
+#endif
 
     /* create core mutex used in the app. for accessing the serial console */
     coremutex_app_ptr = _core_mutex_create( 0, MCC_PRINTF_SEMAPHORE_NUMBER, MQX_TASK_QUEUE_FIFO );
@@ -166,19 +176,21 @@ void responder_task(uint_32 node_num)
         mcc_destroy(node_num);
         _task_block();
     }
-    ret_value = mcc_create_endpoint(&mqx_endpoint_m4, 2);
+    ret_value = mcc_create_endpoint(&mqx_endpoint_m4, MCC_MQX_RESPONDER_PORT);
 
     _core_mutex_lock(coremutex_app_ptr);
     printf("\n\n\nResponder task started, MCC version is %s\n", mcc_info.version_string);
     _core_mutex_unlock(coremutex_app_ptr);
     while (TRUE) {
-#if 0 //polled mode
+#if MCC_APP_BLOCKING_MODE
+        ret_value = mcc_recv_copy(&mqx_endpoint_m4, &msg, sizeof(THE_MESSAGE), &num_of_received_bytes, 0xffffffff);
+#else
         mcc_msgs_available(&mqx_endpoint_m4, &num_available_msgs);
         while(num_available_msgs==0) {
         	mcc_msgs_available(&mqx_endpoint_m4, &num_available_msgs);
         }
+        ret_value = mcc_recv_copy(&mqx_endpoint_m4, &msg, sizeof(THE_MESSAGE), &num_of_received_bytes, 0);
 #endif
-        ret_value = mcc_recv_copy(&mqx_endpoint_m4, &msg, sizeof(THE_MESSAGE), &num_of_received_bytes, 0xffffffff);
         if(MCC_SUCCESS != ret_value) {
             _core_mutex_lock(coremutex_app_ptr);
             printf("Responder task receive error: %i\n", ret_value);

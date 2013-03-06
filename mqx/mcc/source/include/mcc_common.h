@@ -38,9 +38,6 @@ typedef unsigned int MCC_BOOLEAN;
 typedef unsigned int MCC_MEM_SIZE;
 #define null ((void*)0)
 
-/*
- * End points
- */
 typedef unsigned int MCC_CORE;
 typedef unsigned int MCC_NODE;
 typedef unsigned int MCC_PORT;
@@ -48,10 +45,24 @@ typedef unsigned int MCC_PORT;
 #if defined(__IAR_SYSTEMS_ICC__)
 __packed
 #endif
+/*!
+ * \brief Endpoint structure.
+ *
+ * Endpoints are receive buffer queues, implemented in shared RAM, 
+ * and are addressed by a triplet containing core, node, and port.
+ *
+ * \see MCC_BOOKEEPING_STRUCT
+ */
 struct mcc_endpoint {
+	/*! \brief Core number - identifies the core within the processor */
 	MCC_CORE core;
+
+	/*! \brief Node number - in Linux any user process participating in MCC is a unique node; 
+  MQX has only one node */
 	MCC_NODE node;
-	MCC_PORT port;
+
+	/*! \brief Port number - both Linux and MQX can have an arbitrary number of ports per node */
+  MCC_PORT port;
 #if defined(__IAR_SYSTEMS_ICC__)
 };
 #else
@@ -59,15 +70,24 @@ struct mcc_endpoint {
 #endif
 typedef struct mcc_endpoint MCC_ENDPOINT;
 
-/*
- * receive buffers and list structures
- */
 #if defined(__IAR_SYSTEMS_ICC__)
 __packed
 #endif
+/*!
+ * \brief Receive buffer structure.
+ *
+ * This is the receive buffer structure used for exchanging data.
+ *
+ * \see MCC_BOOKEEPING_STRUCT
+ */
 struct mcc_receive_buffer {
+	/*! \brief Pointer to the next receive buffer */
 	struct mcc_receive_buffer *next;
+
+	/*! \brief Length of data stored in this buffer */
 	int data_len;
+
+	/*! \brief Space for data storage */
 	char data [MCC_ATTR_BUFFER_SIZE_IN_BYTES];
 #if defined(__IAR_SYSTEMS_ICC__)
 };
@@ -79,8 +99,20 @@ typedef struct mcc_receive_buffer MCC_RECEIVE_BUFFER;
 #if defined(__IAR_SYSTEMS_ICC__)
 __packed
 #endif
+/*!
+ * \brief List of buffers.
+ *
+ * Each endpoint keeps the list of received buffers.
+ * The list of free buffers is kept in book keeping data structure. 
+ *
+ * \see MCC_RECEIVE_BUFFER
+ * \see MCC_BOOKEEPING_STRUCT
+ */
 struct mcc_receive_list {
+	/*! \brief Head of a buffers list */
 	MCC_RECEIVE_BUFFER * head;
+
+	/*! \brief Tail of a buffers list */
 	MCC_RECEIVE_BUFFER * tail;
 #if defined(__IAR_SYSTEMS_ICC__)
 };
@@ -89,17 +121,26 @@ struct mcc_receive_list {
 #endif
 typedef struct mcc_receive_list MCC_RECEIVE_LIST;
 
-/*
- * Signals and signal queues
- */
 #define BUFFER_QUEUED (0)
 #define BUFFER_FREED  (1)
 typedef unsigned int MCC_SIGNAL_TYPE;
 #if defined(__IAR_SYSTEMS_ICC__)
 __packed
 #endif
+/*!
+ * \brief Signals and signal queues.
+ *
+ * This is one item of a signal queue.
+ *
+ * \see MCC_SIGNAL_TYPE
+ * \see MCC_ENDPOINT
+ * \see MCC_BOOKEEPING_STRUCT
+ */
 struct mcc_signal {
+	/*! \brief Signal type - BUFFER_QUEUED or BUFFER_FREED */
 	MCC_SIGNAL_TYPE type;
+
+	/*! \brief Destination endpoint */
 	MCC_ENDPOINT    destination;
 #if defined(__IAR_SYSTEMS_ICC__)
 };
@@ -108,14 +149,23 @@ struct mcc_signal {
 #endif
 typedef struct mcc_signal MCC_SIGNAL;
 
-/*
- * Endpoint registration table
- */
 #if defined(__IAR_SYSTEMS_ICC__)
 __packed
 #endif
+/*!
+ * \brief Endpoint registration table.
+ *
+ * This is used for matching each endpoint structure with it's list of received buffers.
+ *
+ * \see MCC_ENDPOINT
+ * \see MCC_RECEIVE_LIST
+ * \see MCC_BOOKEEPING_STRUCT
+ */
 struct mcc_endpoint_map_item {
+	/*! \brief Endpoint tripplet */
 	MCC_ENDPOINT      endpoint;
+
+	/*! \brief List of received buffers */
 	MCC_RECEIVE_LIST  list;
 #if defined(__IAR_SYSTEMS_ICC__)
 };
@@ -124,14 +174,18 @@ struct mcc_endpoint_map_item {
 #endif
 typedef struct mcc_endpoint_map_item MCC_ENDPOINT_MAP_ITEM;
 
-/*
- * MCC info structure
- */
 #if defined(__IAR_SYSTEMS_ICC__)
 __packed
 #endif
+/*!
+ * \brief MCC info structure.
+ *
+ * This is used for additional information about the MCC implementation.
+ *
+ * \see MCC_BOOKEEPING_STRUCT
+ */
 struct mcc_info_struct {
-	/* <major>.<minor> - minor is changed whenever patched, major indicates compatibility */
+	/*! \brief <major>.<minor> - minor is changed whenever patched, major indicates compatibility */
 	char version_string[sizeof(MCC_VERSION_STRING)];
 #if defined(__IAR_SYSTEMS_ICC__)
 };
@@ -140,31 +194,46 @@ struct mcc_info_struct {
 #endif
 typedef struct mcc_info_struct MCC_INFO_STRUCT;
 
-/*
- * Share Memory data - Bookkeeping data and buffers.
- */
-
 #if defined(__IAR_SYSTEMS_ICC__)
 __packed
 #endif
+/*!
+ * \brief Share Memory data - Bookkeeping data and buffers.
+ *
+ * This is used for "bookkeeping data" (e.g., endpoint and signal queue head 
+ * and tail pointers) and fixed size data buffers. The whole mcc_bookeeping_struct
+ * as well as each individual structure members has to be defined and stored in the
+ * memory as packed structure. This way same structure member offsets will be ensured
+ * on all cores/OSes/compilers. Compiler-specific pragmas for data packing has to be applied.
+ *
+ * \see MCC_RECEIVE_LIST
+ * \see MCC_SIGNAL
+ * \see MCC_ENDPOINT_MAP_ITEM
+ * \see MCC_RECEIVE_BUFFER
+ */
 struct mcc_bookeeping_struct {
-	/* String that indicates if this struct has been already initialized */
+	/*! \brief String that indicates if this structure has been already initialized */
 	char init_string[sizeof(MCC_INIT_STRING)];
 
-	/* String that indicates the MCC library version */
+	/*! \brief String that indicates the MCC library version */
 	char version_string[sizeof(MCC_VERSION_STRING)];
 
-	/* List of free buffers */
+	/*! \brief List of free buffers */
 	MCC_RECEIVE_LIST free_list;
 
-	/* Each core has it's own queue of received signals */
+	/*! \brief Each core has it's own queue of received signals */
 	MCC_SIGNAL signals_received[MCC_NUM_CORES][MCC_MAX_OUTSTANDING_SIGNALS];
-	unsigned int signal_queue_head[MCC_NUM_CORES], signal_queue_tail[MCC_NUM_CORES];
 
-	/* Endpoint map */
+	/*! \brief Signal queue head for each core */
+	unsigned int signal_queue_head[MCC_NUM_CORES];
+
+	/*! \brief Signal queue tail for each core */
+	unsigned int signal_queue_tail[MCC_NUM_CORES];
+
+	/*! \brief Endpoint map */
 	MCC_ENDPOINT_MAP_ITEM endpoint_table[MCC_ATTR_MAX_RECEIVE_ENDPOINTS];
 
-	/* Receive buffers */
+	/*! \brief Receive buffers, the number is defined in mcc_config.h (MCC_ATTR_NUM_RECEIVE_BUFFERS) */
 	MCC_RECEIVE_BUFFER r_buffers[MCC_ATTR_NUM_RECEIVE_BUFFERS];
 #if defined(__IAR_SYSTEMS_ICC__)
 };

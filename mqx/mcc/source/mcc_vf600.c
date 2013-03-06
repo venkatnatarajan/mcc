@@ -29,9 +29,10 @@
 *END************************************************************************/
 
 #include "mcc_vf600.h"
+#include "mcc_mqx.h"
 
 /* This field contains CPU-to-CPU interrupt vector numbers for all device cores */
-static const unsigned int mcc_cpu_to_cpu_vectors[] = { 48, 16 };
+static const unsigned int mcc_cpu_to_cpu_vectors[] = { INT_CPU_to_CPU_int0, NVIC_CPU_to_CPU_int0 };
 
 /*!
  * \brief This function gets the CPU-to-CPU vector number for the particular core.
@@ -39,6 +40,9 @@ static const unsigned int mcc_cpu_to_cpu_vectors[] = { 48, 16 };
  * Platform-specific inter-CPU vector numbers for each core are defined in the mcc_cpu_to_cpu_vectors[] field.
  *
  * \param[in] core Core number.
+ *
+ * \return vector number for the particular core
+ * \return MCC_VECTOR_NUMBER_INVALID (vector number for the particular core number not found)
  */
 unsigned int mcc_get_cpu_to_cpu_vector(unsigned int core)
 {
@@ -60,13 +64,11 @@ void mcc_clear_cpu_to_cpu_interrupt(unsigned int core)
 {
    if(core == 0) {
        /* clear the flag in the MSCM_IRCP0IR register */
-	   // MSCM_IRCP0IR = MSCM_IRCP0IR_INT0_MASK;
-	   *(unsigned int *)(void*)(0x40001800) = (1 << 0);
+	   MSCM_IRCP0IR = MSCM_IRCP0IR_INT0_MASK;
    }
    else if(core == 1) {
        /* clear the flag in the MSCM_IRCP1IR register */
-	   // MSCM_IRCP1IR = MSCM_IRCP1IR_INT0_MASK;
-       *(unsigned int *)(void*)(0x40001804) = (1 << 0);
+	   MSCM_IRCP1IR = MSCM_IRCP1IR_INT0_MASK;
    }
 }
 
@@ -78,6 +80,5 @@ void mcc_clear_cpu_to_cpu_interrupt(unsigned int core)
 void mcc_triger_cpu_to_cpu_interrupt(void)
 {
 	/* set TLF filed of the MSCM_IRCPGIR to assert directed CPU interrupts for all processors except the requesting core */
-	// MSCM_IRCPGIR = MSCM_IRCPGIR_TLF(1) | MSCM_IRCPGIR_INTID(0);
-	*(unsigned int *)(void*)(0x40001820) = (1 << 24);
+	MSCM_IRCPGIR = MSCM_IRCPGIR_TLF(1) | MSCM_IRCPGIR_INTID(0);
 }
