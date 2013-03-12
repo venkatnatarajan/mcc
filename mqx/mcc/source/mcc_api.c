@@ -613,7 +613,7 @@ int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_
 
     /* Get the message pointer from the head of the receive buffer list */
     MCC_DCACHE_INVALIDATE_MLINES((void*)list->head->data, list->head->data_len);
-    buffer_p = (void**)&list->head->data;
+    *buffer_p = (void*)&list->head->data;
     MCC_DCACHE_INVALIDATE_MLINES((void*)list->head->data_len, sizeof(int));
     *recv_size = (MCC_MEM_SIZE)(list->head->data_len);
 
@@ -679,7 +679,7 @@ int mcc_msgs_available(MCC_ENDPOINT *endpoint, unsigned int *num_msgs)
  * has to be called to free a buffer and to make it available for the next data
  * transfer.
  *
- * \param[in] endpoint Pointer to the endpoint the buffer was received from.
+ * \param[in] endpoint Pointer to the endpoint the buffer is kept by.
  * \param[in] buffer Pointer to the buffer to be freed.
  *
  * \return MCC_SUCCESS
@@ -711,12 +711,12 @@ int mcc_free_buffer(MCC_ENDPOINT *endpoint, void *buffer)
     }
 
     /* Dequeue the buffer from the endpoint list */
-    if(list->head == (MCC_RECEIVE_BUFFER*)buffer) {
+    if(list->head->data == (char*)buffer) {
         buf = mcc_dequeue_buffer(list);
     }
     else {
         buf_tmp = (MCC_RECEIVE_BUFFER*)list->head;
-        while((MCC_RECEIVE_BUFFER*)buf_tmp->next != (MCC_RECEIVE_BUFFER*)buffer) {
+        while(buf_tmp->next->data != (char*)buffer) {
             buf_tmp = (MCC_RECEIVE_BUFFER*)buf_tmp->next;
         }
         buf = (MCC_RECEIVE_BUFFER*)buf_tmp->next;
