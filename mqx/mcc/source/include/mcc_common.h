@@ -85,7 +85,7 @@ struct mcc_receive_buffer {
 	struct mcc_receive_buffer *next;
 
 	/*! \brief Length of data stored in this buffer */
-	int data_len;
+	MCC_MEM_SIZE data_len;
 
 	/*! \brief Space for data storage */
 	char data [MCC_ATTR_BUFFER_SIZE_IN_BYTES];

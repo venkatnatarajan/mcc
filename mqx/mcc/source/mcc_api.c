@@ -183,7 +183,7 @@ int mcc_destroy(MCC_NODE node)
  *
  * \return MCC_SUCCESS
  * \return MCC_ERR_NOMEM (maximum number of endpoints exceeded)
- * \return MCC_ERR_ENDPOINT (invalid value for core, node, or port)
+ * \return MCC_ERR_ENDPOINT (invalid value for port or endpoint already registered)
  * \return MCC_ERR_SEMAPHORE (semaphore handling error)
  *
  * \see mcc_destroy_endpoint
@@ -205,8 +205,10 @@ int mcc_create_endpoint(MCC_ENDPOINT *endpoint, MCC_PORT port)
 
     /* Add new endpoint data into the book-keeping structure */
     return_value = mcc_register_endpoint(*endpoint);
-    if(return_value != MCC_SUCCESS)
-    	return return_value;
+    if(return_value != MCC_SUCCESS) {
+    	mcc_release_semaphore();
+      return return_value;
+    }
 
     /* Semaphore-protected section end */
     return_value =  mcc_release_semaphore();
@@ -241,8 +243,10 @@ int mcc_destroy_endpoint(MCC_ENDPOINT *endpoint)
 
     /* Add new endpoint data into the book-keeping structure */
     return_value = mcc_remove_endpoint(*endpoint);
-    if(return_value != MCC_SUCCESS)
-    	return return_value;
+    if(return_value != MCC_SUCCESS) {
+    	mcc_release_semaphore();
+      return return_value;
+    }
 
     /* Semaphore-protected section end */
     return_value =  mcc_release_semaphore();
@@ -352,7 +356,7 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
     mcc_memcpy(msg, (void*)buf->data, (unsigned int)msg_size);
     MCC_DCACHE_FLUSH_MLINES((void*)buf->data, msg_size);
     buf->data_len = msg_size;
-    MCC_DCACHE_FLUSH_MLINES((void*)&buf->data_len, sizeof(int));
+    MCC_DCACHE_FLUSH_MLINES((void*)&buf->data_len, sizeof(MCC_MEM_SIZE));
 
     /* Semaphore-protected section start */
     return_value = mcc_get_semaphore();
@@ -657,9 +661,10 @@ int mcc_msgs_available(MCC_ENDPOINT *endpoint, unsigned int *num_msgs)
     	return MCC_ERR_ENDPOINT;
     }
 
-    buf = list->head;
+	buf = list->head;
     while(buf != (MCC_RECEIVE_BUFFER*)0) {
         count++;
+        MCC_DCACHE_INVALIDATE_MLINES((void*)&buf->next, sizeof(MCC_RECEIVE_BUFFER*));
         buf = (MCC_RECEIVE_BUFFER*)buf->next;
     }
     *num_msgs = count;
