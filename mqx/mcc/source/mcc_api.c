@@ -327,12 +327,11 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
         else {
 #if (MCC_OS_USED == MCC_MQX)
         	if(!end_time_set_flag) {
-            	time_us_tmp = mcc_time_get_microseconds();
-            	time_us_tmp += timeout_us;
-            	time.SECONDS = time_us_tmp/1000000;
-            	time.MILLISECONDS = time_us_tmp*1000;
-            	_time_to_ticks(&time, &tick_time);
-            	end_time_set_flag = 1;
+                _time_get(&time);
+                time.SECONDS += timeout_us/1000000;
+                time.MILLISECONDS += (timeout_us - timeout_us/1000000*1000000)*1000;
+                _time_to_ticks(&time, &tick_time);
+                end_time_set_flag = 1;
         	}
         	return_value = _lwevent_wait_until(&lwevent_buffer_freed, 1, TRUE, &tick_time);
         	if(return_value == LWEVENT_WAIT_TIMEOUT) {
@@ -471,12 +470,11 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
     		}
         	/* timeout_us > 0 */
         	else {
-            	time_us_tmp = mcc_time_get_microseconds();
-            	time_us_tmp += timeout_us;
-            	time.SECONDS = time_us_tmp/1000000;
-            	time.MILLISECONDS = time_us_tmp*1000;
-            	_time_to_ticks(&time, &tick_time);
-            	_lwevent_wait_until(&lwevent_buffer_queued[lwevent_index], 1<<lwevent_group_index, TRUE, &tick_time);
+                _time_get(&time);
+                time.SECONDS += timeout_us/1000000;
+                time.MILLISECONDS += (timeout_us - timeout_us/1000000*1000000)*1000;
+                _time_to_ticks(&time, &tick_time);
+                _lwevent_wait_until(&lwevent_buffer_queued[lwevent_index], 1<<lwevent_group_index, TRUE, &tick_time);
         	}
 #endif
             MCC_DCACHE_INVALIDATE_MLINES((void*)list, sizeof(MCC_RECEIVE_LIST*));
@@ -595,12 +593,11 @@ int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_
     		}
         	/* timeout_us > 0 */
         	else {
-            	time_us_tmp = mcc_time_get_microseconds();
-            	time_us_tmp += timeout_us;
-            	time.SECONDS = time_us_tmp/1000000;
-            	time.MILLISECONDS = time_us_tmp*1000;
-            	_time_to_ticks(&time, &tick_time);
-            	_lwevent_wait_until(&lwevent_buffer_queued[lwevent_index], 1<<lwevent_group_index, TRUE, &tick_time);
+                _time_get(&time);
+                time.SECONDS += timeout_us/1000000;
+                time.MILLISECONDS += (timeout_us - timeout_us/1000000*1000000)*1000;
+                _time_to_ticks(&time, &tick_time);
+                _lwevent_wait_until(&lwevent_buffer_queued[lwevent_index], 1<<lwevent_group_index, TRUE, &tick_time);
         	}
 #endif
             MCC_DCACHE_INVALIDATE_MLINES((void*)list, sizeof(MCC_RECEIVE_LIST*));

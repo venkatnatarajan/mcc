@@ -62,7 +62,4 @@ int mcc_generate_cpu_to_cpu_interrupt(void);
 /* Memory management-related functions */
 void mcc_memcpy(void*, void*, unsigned int);
 
-/* Time-related functions */
-unsigned int mcc_time_get_microseconds(void);
-
 #endif /* __MCC_MQX__ */

@@ -42,18 +42,24 @@
 
 #include <core_mutex.h>
 
-#define PRINT_ON  1
+#define PRINT_ON              (1)
 
-#define MAIN_TASK       10
-#define RESP_TASK       12
+#define MAIN_TASK             (10)
+#define RESP_TASK             (12)
 
-#define TEST_CNT        10
+#define TEST_CNT              (10)
+#define UUT_APP_BUF_SIZE      (30)
+#define TEA_APP_BUF_SIZE      (50)
+#define CMD_SEND_MSG_SIZE     (20)
+#define CMD_SEND_TIMEOUT_US   (1000000)
+#define CMD_RECV_TIMEOUT_US   (2000000)
 
 #define CTR_CMD_CREATE_EP     (10)
 #define CTR_CMD_DESTROY_EP    (11)
 #define CTR_CMD_SEND          (12)
 #define CTR_CMD_RECV          (13)
 #define CTR_CMD_MSG_AVAIL     (14)
+#define CTR_CMD_GET_INFO      (15)
 
 /* recv command modes */
 #define CMD_RECV_MODE_COPY     (1)
@@ -107,6 +113,7 @@
 
 MCC_ENDPOINT    tea_control_endpoint = {MCC_TEA_CORE,MCC_TEA_NODE,MCC_TEA_CTRL_EP_PORT};
 MCC_ENDPOINT    uut_control_endpoint = {MCC_UUT_CORE,MCC_UUT_NODE,MCC_UUT_CTRL_EP_PORT};
+MCC_ENDPOINT    null_endpoint = {0,0,0};
 
 #if defined(__IAR_SYSTEMS_ICC__)
 __packed
@@ -128,9 +135,13 @@ __packed
 #endif
 struct acknowledge_message
 {
-    uint_8    CMD_ACK;
-    int       RETURN_VALUE;
-    uint_8    RESP_DATA[100];
+    uint_8 CMD_ACK;
+    int    RETURN_VALUE;
+    int    TS1_SEC;
+    int    TS1_MSEC;
+    int    TS2_SEC;
+    int    TS2_MSEC;
+    uint_8 RESP_DATA[100];
 #if defined(__IAR_SYSTEMS_ICC__)
 };
 #else
@@ -216,12 +227,27 @@ struct control_message_data_msg_avail_param
 #endif
 typedef struct control_message_data_msg_avail_param CONTROL_MESSAGE_DATA_MSG_AVAIL_PARAM, _PTR_ CONTROL_MESSAGE_DATA_MSG_AVAIL_PARAM_PTR;
 
+#if defined(__IAR_SYSTEMS_ICC__)
+__packed
+#endif
+struct control_message_data_get_info_param
+{
+    MCC_ENDPOINT uut_endpoint;
+    MCC_ENDPOINT endpoint_to_ack;
+#if defined(__IAR_SYSTEMS_ICC__)
+};
+#else
+}__attribute__((packed));
+#endif
+typedef struct control_message_data_get_info_param CONTROL_MESSAGE_DATA_GET_INFO_PARAM, _PTR_ CONTROL_MESSAGE_DATA_GET_INFO_PARAM_PTR;
+
 extern void main_task(uint_32);
 extern void tc_1_main_task(void);
 extern void tc_2_main_task(void);
 extern void tc_3_main_task(void);
 extern void tc_4_main_task(void);
 extern void tc_5_main_task(void);
+extern void tc_6_main_task(void);
 
 extern void responder_task(uint_32);
 

@@ -187,13 +187,3 @@ void mcc_memcpy(void *src, void *dest, unsigned int size)
     _mem_copy((pointer)src, (pointer)dest, (_mem_size)size);
 }
 
-/*!
- * \brief This function returns actual system time in microseconds.
- */
-unsigned int mcc_time_get_microseconds(void)
-{
-    TIME_STRUCT mqx_time;
-
-    _time_get(&mqx_time);
-    return ((1000 * mqx_time.MILLISECONDS) + (1000000 * mqx_time.SECONDS));
-}

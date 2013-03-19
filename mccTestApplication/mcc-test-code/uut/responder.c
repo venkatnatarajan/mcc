@@ -45,7 +45,7 @@
 const TASK_TEMPLATE_STRUCT  MQX_template_list[] =
 {
    /* Task Index,  Function,       Stack,  Priority,  Name,         Attributes,           Param,  Time Slice */
-    { RESP_TASK,   responder_task, 2000,   9,         "Responer",   MQX_AUTO_START_TASK,  0,      0 },
+    { RESP_TASK,   responder_task, 10000,  9,         "Responder",  MQX_AUTO_START_TASK,  0,      0 },
     { 0 }
 };
 
@@ -71,8 +71,10 @@ void responder_task(uint_32 dummy)
     CONTROL_MESSAGE_DATA_SEND_PARAM_PTR data_send_param;
     CONTROL_MESSAGE_DATA_RECV_PARAM_PTR data_recv_param;
     CONTROL_MESSAGE_DATA_MSG_AVAIL_PARAM_PTR data_msg_avail_param;
-    void* uut_app_buffer_ptr[255];
-    void* uut_temp_buffer_ptr;
+    CONTROL_MESSAGE_DATA_GET_INFO_PARAM_PTR data_get_info_param;
+    void*           uut_app_buffer_ptr[255];
+    void*           uut_temp_buffer_ptr;
+    TIME_STRUCT     uut_time;
 
 #if PRINT_ON
     /* create core mutex used in the app. for accessing the serial console */
@@ -130,12 +132,46 @@ void responder_task(uint_32 dummy)
             case CTR_CMD_RECV:
                 data_recv_param = (CONTROL_MESSAGE_DATA_RECV_PARAM_PTR)&msg.DATA;
                 if(CMD_RECV_MODE_COPY == data_recv_param->mode) {
-                    ret_value = mcc_recv_copy(&data_recv_param->uut_endpoint, uut_app_buffer_ptr[data_recv_param->uut_endpoint.port], data_recv_param->uut_app_buffer_size, &num_of_received_bytes, data_recv_param->timeout_us);
+                    if(0xffffffff == data_recv_param->timeout_us) {
+                        ret_value = mcc_recv_copy(&data_recv_param->uut_endpoint, uut_app_buffer_ptr[data_recv_param->uut_endpoint.port], data_recv_param->uut_app_buffer_size, &num_of_received_bytes, data_recv_param->timeout_us);
+                    }
+                    else if(0 == data_recv_param->timeout_us) {
+                        do {
+                            ret_value = mcc_recv_copy(&data_recv_param->uut_endpoint, uut_app_buffer_ptr[data_recv_param->uut_endpoint.port], data_recv_param->uut_app_buffer_size, &num_of_received_bytes, data_recv_param->timeout_us);
+                        } while(MCC_ERR_TIMEOUT == ret_value);
+                    }
+                    else {
+                        _time_get(&uut_time);
+                        ack_msg.TS1_SEC = uut_time.SECONDS;
+                        ack_msg.TS1_MSEC = uut_time.MILLISECONDS;
+                        ret_value = mcc_recv_copy(&data_recv_param->uut_endpoint, uut_app_buffer_ptr[data_recv_param->uut_endpoint.port], data_recv_param->uut_app_buffer_size, &num_of_received_bytes, data_recv_param->timeout_us);
+                        _time_get(&uut_time);
+                        ack_msg.TS2_SEC = uut_time.SECONDS;
+                        ack_msg.TS2_MSEC = uut_time.MILLISECONDS;
+                    }
                 }
                 else if(CMD_RECV_MODE_NOCOPY == data_recv_param->mode) {
-                    ret_value = mcc_recv_nocopy(&data_recv_param->uut_endpoint, (void**)&uut_temp_buffer_ptr, &num_of_received_bytes, data_recv_param->timeout_us);
-                    mcc_memcpy((void*)uut_temp_buffer_ptr, (void*)uut_app_buffer_ptr[data_recv_param->uut_endpoint.port], (unsigned int)num_of_received_bytes);
-                    mcc_free_buffer(&data_recv_param->uut_endpoint, uut_temp_buffer_ptr);
+                    if(0xffffffff == data_recv_param->timeout_us) {
+                        ret_value = mcc_recv_nocopy(&data_recv_param->uut_endpoint, (void**)&uut_temp_buffer_ptr, &num_of_received_bytes, data_recv_param->timeout_us);
+                    }
+                    else if(0 == data_recv_param->timeout_us) {
+                        do {
+                            ret_value = mcc_recv_nocopy(&data_recv_param->uut_endpoint, (void**)&uut_temp_buffer_ptr, &num_of_received_bytes, data_recv_param->timeout_us);
+                        } while(MCC_ERR_TIMEOUT == ret_value);
+                    }
+                    else {
+                        _time_get(&uut_time);
+                        ack_msg.TS1_SEC = uut_time.SECONDS;
+                        ack_msg.TS1_MSEC = uut_time.MILLISECONDS;
+                        ret_value = mcc_recv_nocopy(&data_recv_param->uut_endpoint, (void**)&uut_temp_buffer_ptr, &num_of_received_bytes, data_recv_param->timeout_us);
+                        _time_get(&uut_time);
+                        ack_msg.TS2_SEC = uut_time.SECONDS;
+                        ack_msg.TS2_MSEC = uut_time.MILLISECONDS;
+                    }
+                    if(MCC_SUCCESS == ret_value) {
+                        mcc_memcpy((void*)uut_temp_buffer_ptr, (void*)uut_app_buffer_ptr[data_recv_param->uut_endpoint.port], (unsigned int)num_of_received_bytes);
+                        mcc_free_buffer(&data_recv_param->uut_endpoint, uut_temp_buffer_ptr);
+                    }
                 }
                 if(ACK_REQUIRED_YES == msg.ACK_REQUIRED) {
                     ack_msg.CMD_ACK = CTR_CMD_RECV;
@@ -145,6 +181,11 @@ void responder_task(uint_32 dummy)
                 break;
             case CTR_CMD_SEND:
                 data_send_param = (CONTROL_MESSAGE_DATA_SEND_PARAM_PTR)&msg.DATA;
+                if((0 != data_send_param->timeout_us) && (0xffffffff != data_send_param->timeout_us)) {
+                    _time_get(&uut_time);
+                    ack_msg.TS1_SEC = uut_time.SECONDS;
+                    ack_msg.TS1_MSEC = uut_time.MILLISECONDS;
+                }
                 if(0 == strncmp((const char *)data_send_param->msg, "", 1)) {
                     /* send the content of the uut_app_buffer_ptr */
                     ret_value = mcc_send(&data_send_param->dest_endpoint, uut_app_buffer_ptr[data_send_param->uut_endpoint.port], data_send_param->msg_size, data_send_param->timeout_us);
@@ -152,6 +193,11 @@ void responder_task(uint_32 dummy)
                 else {
                     /* send what received in the control command */
                     ret_value = mcc_send(&data_send_param->dest_endpoint, data_send_param->msg, data_send_param->msg_size, data_send_param->timeout_us);
+                }
+                if((0 != data_send_param->timeout_us) && (0xffffffff != data_send_param->timeout_us)) {
+                    _time_get(&uut_time);
+                    ack_msg.TS2_SEC = uut_time.SECONDS;
+                    ack_msg.TS2_MSEC = uut_time.MILLISECONDS;
                 }
                 if(ACK_REQUIRED_YES == msg.ACK_REQUIRED) {
                     ack_msg.CMD_ACK = CTR_CMD_SEND;
@@ -177,6 +223,15 @@ void responder_task(uint_32 dummy)
                     ack_msg.CMD_ACK = CTR_CMD_DESTROY_EP;
                     ack_msg.RETURN_VALUE = ret_value;
                     ret_value = mcc_send(&data_destroy_ep_param->endpoint_to_ack, &ack_msg, sizeof(ACKNOWLEDGE_MESSAGE), 0xFFFFFFFF);
+                }
+                break;
+            case CTR_CMD_GET_INFO:
+            	data_get_info_param = (CONTROL_MESSAGE_DATA_GET_INFO_PARAM_PTR)&msg.DATA;
+                ret_value = mcc_get_info(data_get_info_param->uut_endpoint.node, (MCC_INFO_STRUCT*)&ack_msg.RESP_DATA);
+                if(ACK_REQUIRED_YES == msg.ACK_REQUIRED) {
+                    ack_msg.CMD_ACK = CTR_CMD_GET_INFO;
+                    ack_msg.RETURN_VALUE = ret_value;
+                    ret_value = mcc_send(&data_get_info_param->endpoint_to_ack, &ack_msg, sizeof(ACKNOWLEDGE_MESSAGE), 0xFFFFFFFF);
                 }
                 break;
             }
