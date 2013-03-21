@@ -62,10 +62,10 @@ void responder_task(uint_32 dummy)
 {
     CONTROL_MESSAGE msg;
     ACKNOWLEDGE_MESSAGE ack_msg;
-    MCC_MEM_SIZE    num_of_received_bytes;
+    MCC_MEM_SIZE    num_of_received_bytes,num_of_received_control_bytes;
     CORE_MUTEX_PTR  coremutex_app_ptr;
     MCC_INFO_STRUCT mcc_info;
-    int             ret_value;
+    int             ret_value, i;
     CONTROL_MESSAGE_DATA_CREATE_EP_PARAM_PTR data_create_ep_param;
     CONTROL_MESSAGE_DATA_DESTROY_EP_PARAM_PTR data_destroy_ep_param;
     CONTROL_MESSAGE_DATA_SEND_PARAM_PTR data_send_param;
@@ -75,6 +75,8 @@ void responder_task(uint_32 dummy)
     void*           uut_app_buffer_ptr[255];
     void*           uut_temp_buffer_ptr;
     TIME_STRUCT     uut_time;
+    pointer         tmp_pointer=null;
+    _mqx_uint       err_code;
 
 #if PRINT_ON
     /* create core mutex used in the app. for accessing the serial console */
@@ -100,7 +102,7 @@ void responder_task(uint_32 dummy)
     _core_mutex_unlock(coremutex_app_ptr);
 #endif
     while (TRUE) {
-        ret_value = mcc_recv_copy(&uut_control_endpoint, &msg, sizeof(CONTROL_MESSAGE), &num_of_received_bytes, 0xffffffff);
+        ret_value = mcc_recv_copy(&uut_control_endpoint, &msg, sizeof(CONTROL_MESSAGE), &num_of_received_control_bytes, 0xffffffff);
         if(MCC_SUCCESS != ret_value) {
 #if PRINT_ON
             _core_mutex_lock(coremutex_app_ptr);
@@ -111,17 +113,30 @@ void responder_task(uint_32 dummy)
 #if PRINT_ON
             _core_mutex_lock(coremutex_app_ptr);
             printf("Responder task received a msg\n");
-            printf("Message: Size=%x, CMD = %x, DATA = %x\n", num_of_received_bytes, msg.CMD, msg.DATA);
+            printf("Message: Size=%x, CMD = %x, DATA = %x\n", num_of_received_control_bytes, msg.CMD, msg.DATA);
             _core_mutex_unlock(coremutex_app_ptr);
 #endif
 
+            if(num_of_received_control_bytes < 10) {
+            	num_of_received_control_bytes++;
+            }
             switch(msg.CMD){
             case CTR_CMD_CREATE_EP:
                 data_create_ep_param = (CONTROL_MESSAGE_DATA_CREATE_EP_PARAM_PTR)&msg.DATA;
-                uut_app_buffer_ptr[data_create_ep_param->uut_endpoint.port] = _mem_alloc(data_create_ep_param->uut_app_buffer_size);
                 ret_value = mcc_create_endpoint(&data_create_ep_param->uut_endpoint, data_create_ep_param->uut_endpoint.port);
-                if(MCC_SUCCESS != ret_value) {
-                    _mem_free((void*)uut_app_buffer_ptr[data_create_ep_param->uut_endpoint.port]);
+                if(MCC_SUCCESS == ret_value) {
+                    tmp_pointer = _mem_alloc(data_create_ep_param->uut_app_buffer_size);
+                    if(tmp_pointer != null) {
+                        uut_app_buffer_ptr[data_create_ep_param->uut_endpoint.port] = tmp_pointer;
+                        mcc_memcpy("MEM_OK", (void*)ack_msg.RESP_DATA, 7);
+                    }
+                    else {
+                        _mem_free(tmp_pointer);
+                        mcc_memcpy("MEM_KO", (void*)ack_msg.RESP_DATA, 7);
+    #if PRINT_ON
+                        printf("_mem_alloc failure\n");
+    #endif
+                    }
                 }
                 if(ACK_REQUIRED_YES == msg.ACK_REQUIRED) {
                     ack_msg.CMD_ACK = CTR_CMD_CREATE_EP;
@@ -181,23 +196,25 @@ void responder_task(uint_32 dummy)
                 break;
             case CTR_CMD_SEND:
                 data_send_param = (CONTROL_MESSAGE_DATA_SEND_PARAM_PTR)&msg.DATA;
-                if((0 != data_send_param->timeout_us) && (0xffffffff != data_send_param->timeout_us)) {
-                    _time_get(&uut_time);
-                    ack_msg.TS1_SEC = uut_time.SECONDS;
-                    ack_msg.TS1_MSEC = uut_time.MILLISECONDS;
-                }
-                if(0 == strncmp((const char *)data_send_param->msg, "", 1)) {
-                    /* send the content of the uut_app_buffer_ptr */
-                    ret_value = mcc_send(&data_send_param->dest_endpoint, uut_app_buffer_ptr[data_send_param->uut_endpoint.port], data_send_param->msg_size, data_send_param->timeout_us);
-                }
-                else {
-                    /* send what received in the control command */
-                    ret_value = mcc_send(&data_send_param->dest_endpoint, data_send_param->msg, data_send_param->msg_size, data_send_param->timeout_us);
-                }
-                if((0 != data_send_param->timeout_us) && (0xffffffff != data_send_param->timeout_us)) {
-                    _time_get(&uut_time);
-                    ack_msg.TS2_SEC = uut_time.SECONDS;
-                    ack_msg.TS2_MSEC = uut_time.MILLISECONDS;
+                for(i=0; i<data_send_param->repeat_count; i++) {
+                    if((0 != data_send_param->timeout_us) && (0xffffffff != data_send_param->timeout_us)) {
+                        _time_get(&uut_time);
+                        ack_msg.TS1_SEC = uut_time.SECONDS;
+                        ack_msg.TS1_MSEC = uut_time.MILLISECONDS;
+                    }
+                    if(0 == strncmp((const char *)data_send_param->msg, "", 1)) {
+                        /* send the content of the uut_app_buffer_ptr */
+                        ret_value = mcc_send(&data_send_param->dest_endpoint, uut_app_buffer_ptr[data_send_param->uut_endpoint.port], data_send_param->msg_size, data_send_param->timeout_us);
+                    }
+                    else {
+                        /* send what received in the control command */
+                        ret_value = mcc_send(&data_send_param->dest_endpoint, data_send_param->msg, data_send_param->msg_size, data_send_param->timeout_us);
+                    }
+                    if((0 != data_send_param->timeout_us) && (0xffffffff != data_send_param->timeout_us)) {
+                        _time_get(&uut_time);
+                        ack_msg.TS2_SEC = uut_time.SECONDS;
+                        ack_msg.TS2_MSEC = uut_time.MILLISECONDS;
+                    }
                 }
                 if(ACK_REQUIRED_YES == msg.ACK_REQUIRED) {
                     ack_msg.CMD_ACK = CTR_CMD_SEND;
@@ -218,7 +235,18 @@ void responder_task(uint_32 dummy)
             case CTR_CMD_DESTROY_EP:
                 data_destroy_ep_param = (CONTROL_MESSAGE_DATA_DESTROY_EP_PARAM_PTR)&msg.DATA;
                 ret_value = mcc_destroy_endpoint(&data_destroy_ep_param->uut_endpoint);
-                _mem_free((void*)uut_app_buffer_ptr[data_destroy_ep_param->uut_endpoint.port]);
+                if(MCC_SUCCESS == ret_value) {
+                    err_code = _mem_free((void*)uut_app_buffer_ptr[data_destroy_ep_param->uut_endpoint.port]);
+                    if(MQX_OK != err_code) {
+#if PRINT_ON
+                        printf("_mem_free failure\n");
+#endif
+                        mcc_memcpy("MEM_KO", (void*)ack_msg.RESP_DATA, 7);
+                    }
+                    else {
+                        mcc_memcpy("MEM_OK", (void*)ack_msg.RESP_DATA, 7);
+                    }
+                }
                 if(ACK_REQUIRED_YES == msg.ACK_REQUIRED) {
                     ack_msg.CMD_ACK = CTR_CMD_DESTROY_EP;
                     ack_msg.RETURN_VALUE = ret_value;

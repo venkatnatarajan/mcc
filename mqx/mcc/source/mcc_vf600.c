@@ -46,11 +46,11 @@ static const unsigned int mcc_cpu_to_cpu_vectors[] = { INT_CPU_to_CPU_int0, NVIC
  */
 unsigned int mcc_get_cpu_to_cpu_vector(unsigned int core)
 {
-   if (core < (sizeof(mcc_cpu_to_cpu_vectors)/sizeof(mcc_cpu_to_cpu_vectors[0]))) {
-      return  mcc_cpu_to_cpu_vectors[core];
+    if (core < (sizeof(mcc_cpu_to_cpu_vectors)/sizeof(mcc_cpu_to_cpu_vectors[0]))) {
+        return  mcc_cpu_to_cpu_vectors[core];
 
-   }
-   return MCC_VECTOR_NUMBER_INVALID;
+    }
+    return MCC_VECTOR_NUMBER_INVALID;
 }
 
 /*!
@@ -62,13 +62,13 @@ unsigned int mcc_get_cpu_to_cpu_vector(unsigned int core)
  */
 void mcc_clear_cpu_to_cpu_interrupt(unsigned int core)
 {
-   if(core == 0) {
-       /* clear the flag in the MSCM_IRCP0IR register */
-	   MSCM_IRCP0IR = MSCM_IRCP0IR_INT0_MASK;
-   }
-   else if(core == 1) {
-       /* clear the flag in the MSCM_IRCP1IR register */
-	   MSCM_IRCP1IR = MSCM_IRCP1IR_INT0_MASK;
+    if(core == 0) {
+        /* clear the flag in the MSCM_IRCP0IR register */
+        MSCM_IRCP0IR = MSCM_IRCP0IR_INT0_MASK;
+    }
+    else if(core == 1) {
+        /* clear the flag in the MSCM_IRCP1IR register */
+        MSCM_IRCP1IR = MSCM_IRCP1IR_INT0_MASK;
    }
 }
 
@@ -79,6 +79,6 @@ void mcc_clear_cpu_to_cpu_interrupt(unsigned int core)
  */
 void mcc_triger_cpu_to_cpu_interrupt(void)
 {
-	/* set TLF filed of the MSCM_IRCPGIR to assert directed CPU interrupts for all processors except the requesting core */
-	MSCM_IRCPGIR = MSCM_IRCPGIR_TLF(1) | MSCM_IRCPGIR_INTID(0);
+    /* set TLF filed of the MSCM_IRCPGIR to assert directed CPU interrupts for all processors except the requesting core */
+    MSCM_IRCPGIR = MSCM_IRCPGIR_TLF(1) | MSCM_IRCPGIR_INTID(0);
 }

@@ -63,11 +63,11 @@ static void mcc_cpu_to_cpu_isr(void *param)
         if((serviced_signal.type == BUFFER_QUEUED) &&
            (serviced_signal.destination.core == MCC_CORE_NUMBER)) {
             /* Unblock receiver, in case of asynchronous communication */
-        	_lwevent_set(&lwevent_buffer_queued[serviced_signal.destination.port / MCC_MQX_LWEVENT_GROUP_SIZE], 1<<(serviced_signal.destination.port % MCC_MQX_LWEVENT_GROUP_SIZE));
+            _lwevent_set(&lwevent_buffer_queued[serviced_signal.destination.port / MCC_MQX_LWEVENT_GROUP_SIZE], 1<<(serviced_signal.destination.port % MCC_MQX_LWEVENT_GROUP_SIZE));
         }
         else if(serviced_signal.type == BUFFER_FREED) {
             /* Unblock sender, in case of asynchronous communication */
-        	_lwevent_set(&lwevent_buffer_freed, 1);
+            _lwevent_set(&lwevent_buffer_freed, 1);
         }
     }
 }
@@ -83,7 +83,6 @@ int mcc_init_semaphore(unsigned int sem_num)
 {
     /* Create a core mutex */
     cm_ptr = _core_mutex_create(0, sem_num, MQX_TASK_QUEUE_FIFO);
-    //TODO: MCC_CORE_NUMBER???, maybe pass it via param
 
     if(NULL == cm_ptr)
         return MCC_ERR_SEMAPHORE;
@@ -150,12 +149,12 @@ int mcc_register_cpu_to_cpu_isr(void)
     if(vector_number != MCC_VECTOR_NUMBER_INVALID) {
         _int_install_isr((_mqx_uint)vector_number, mcc_cpu_to_cpu_isr, NULL);
         mcc_clear_cpu_to_cpu_interrupt(MCC_CORE_NUMBER);
-        _bsp_int_init(vector_number, 3, 0, TRUE); //TODO: handle priority value correctly, define in BSP?
+        _bsp_int_init(vector_number, 3, 0, TRUE);
         _bsp_int_enable(vector_number);
         return MCC_SUCCESS;
     }
     else {
-    	return MCC_ERR_INT;
+        return MCC_ERR_INT;
     }
 }
 
@@ -167,8 +166,6 @@ int mcc_generate_cpu_to_cpu_interrupt(void)
 {
     /* Assert directed CPU interrupts for all processors except the requesting core */
     mcc_triger_cpu_to_cpu_interrupt();
-
-    //TODO: distinguish the core via the function parameter???
 
     return MCC_SUCCESS;
 }

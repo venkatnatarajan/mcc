@@ -189,6 +189,7 @@ struct control_message_data_send_param
     unsigned int timeout_us;
     MCC_ENDPOINT uut_endpoint; //in case of uup_app_buffer has to be used, specify the UUT endpoint
     MCC_ENDPOINT endpoint_to_ack;
+    unsigned int repeat_count;
 #if defined(__IAR_SYSTEMS_ICC__)
 };
 #else
@@ -248,6 +249,7 @@ extern void tc_3_main_task(void);
 extern void tc_4_main_task(void);
 extern void tc_5_main_task(void);
 extern void tc_6_main_task(void);
+extern void tc_7_main_task(void);
 
 extern void responder_task(uint_32);
 

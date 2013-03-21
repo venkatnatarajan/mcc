@@ -40,6 +40,8 @@
 #define MCC_MQX_LWEVENT_COMPONENTS_COUNT   (8)
 #define MCC_MQX_LWEVENT_GROUP_SIZE         (32)
 
+#define MCC_MQX_NODE_NUMBER                (0)
+
 #define MCC_DCACHE_ENABLE(n)               _DCACHE_ENABLE(n)
 #define MCC_DCACHE_DISABLE()               _DCACHE_DISABLE()
 #define MCC_DCACHE_FLUSH()                 _DCACHE_FLUSH()

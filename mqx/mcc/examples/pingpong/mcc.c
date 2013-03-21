@@ -187,7 +187,7 @@ void responder_task(uint_32 node_num)
 #else
         mcc_msgs_available(&mqx_endpoint_m4, &num_available_msgs);
         while(num_available_msgs==0) {
-        	mcc_msgs_available(&mqx_endpoint_m4, &num_available_msgs);
+            mcc_msgs_available(&mqx_endpoint_m4, &num_available_msgs);
         }
         ret_value = mcc_recv_copy(&mqx_endpoint_m4, &msg, sizeof(THE_MESSAGE), &num_of_received_bytes, 0);
 #endif

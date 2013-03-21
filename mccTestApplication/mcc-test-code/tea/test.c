@@ -64,7 +64,8 @@ uint_32         msg_counter = 0;
 *                  number of EP reached, creation of the EP with
 *                  port==MCC_RESERVED_PORT_NUMBER).
 *                - Destroy of all created EP on the UUT side is issue. Error
-*                  conditions covered (destroy of not registered EP).
+*                  conditions covered (destroy of not registered EP and the EP
+*                  with port==MCC_RESERVED_PORT_NUMBER).
 *                - mcc_get_info() functions call is issued on the UUT side.
 *
 *END*---------------------------------------------------------------------*/
@@ -139,9 +140,8 @@ void tc_1_main_task(void)
     EU_ASSERT_REF_TC_MSG( tc_1_main_task, CTR_CMD_CREATE_EP == ack_msg.CMD_ACK, "TEST #1: 1.6 Checking correct CTR_CMD_CREATE_EP acknowledge message 'CMD_ACK' content");
     EU_ASSERT_REF_TC_MSG( tc_1_main_task, MCC_ERR_ENDPOINT == ack_msg.RETURN_VALUE, "TEST #1: 1.7 Checking correct CTR_CMD_CREATE_EP acknowledge message 'RETURN_VALUE' content");
 
-    data_create_ep_param.uut_endpoint.port++;
-
     for(i = 0; i < MCC_ATTR_MAX_RECEIVE_ENDPOINTS-3; i++) {
+        data_create_ep_param.uut_endpoint.port++;
         msg.CMD = CTR_CMD_CREATE_EP;
         msg.ACK_REQUIRED = ACK_REQUIRED_YES;
         mcc_memcpy((void*)&data_create_ep_param, (void*)msg.DATA, (unsigned int)sizeof(struct control_message_data_create_ep_param));
@@ -149,17 +149,18 @@ void tc_1_main_task(void)
         ret_value = mcc_recv_copy(&tea_control_endpoint, &ack_msg, sizeof(ACKNOWLEDGE_MESSAGE), &num_of_received_bytes, 0xffffffff);
         EU_ASSERT_REF_TC_MSG( tc_1_main_task, CTR_CMD_CREATE_EP == ack_msg.CMD_ACK, "TEST #1: 1.8 Checking correct CTR_CMD_CREATE_EP acknowledge message 'CMD_ACK' content");
         EU_ASSERT_REF_TC_MSG( tc_1_main_task, MCC_SUCCESS == ack_msg.RETURN_VALUE, "TEST #1: 1.9 Checking correct CTR_CMD_CREATE_EP acknowledge message 'RETURN_VALUE' content");
-        data_create_ep_param.uut_endpoint.port++;
+        EU_ASSERT_REF_TC_MSG( tc_1_main_task, 0 == strncmp((const char *)ack_msg.RESP_DATA, "MEM_OK", 7), "TEST #1: 1.10 Checking correct CTR_CMD_CREATE_EP response message content");
     }
 
     /* Another EP creation should not be possible - MCC_ERR_NOMEM should be returned */
+    data_create_ep_param.uut_endpoint.port++;
     msg.CMD = CTR_CMD_CREATE_EP;
     msg.ACK_REQUIRED = ACK_REQUIRED_YES;
     mcc_memcpy((void*)&data_create_ep_param, (void*)msg.DATA, (unsigned int)sizeof(struct control_message_data_create_ep_param));
     ret_value = mcc_send(&uut_control_endpoint, &msg, sizeof(CONTROL_MESSAGE), 0xffffffff);
     ret_value = mcc_recv_copy(&tea_control_endpoint, &ack_msg, sizeof(ACKNOWLEDGE_MESSAGE), &num_of_received_bytes, 0xffffffff);
-    EU_ASSERT_REF_TC_MSG( tc_1_main_task, CTR_CMD_CREATE_EP == ack_msg.CMD_ACK, "TEST #1: 1.10 Checking correct CTR_CMD_CREATE_EP acknowledge message 'CMD_ACK' content");
-    EU_ASSERT_REF_TC_MSG( tc_1_main_task, MCC_ERR_NOMEM == ack_msg.RETURN_VALUE, "TEST #1: 1.11 Checking correct CTR_CMD_CREATE_EP acknowledge message 'RETURN_VALUE' content");
+    EU_ASSERT_REF_TC_MSG( tc_1_main_task, CTR_CMD_CREATE_EP == ack_msg.CMD_ACK, "TEST #1: 1.11 Checking correct CTR_CMD_CREATE_EP acknowledge message 'CMD_ACK' content");
+    EU_ASSERT_REF_TC_MSG( tc_1_main_task, MCC_ERR_NOMEM == ack_msg.RETURN_VALUE, "TEST #1: 1.12 Checking correct CTR_CMD_CREATE_EP acknowledge message 'RETURN_VALUE' content");
 
     /* EP destroy testing */
     /* Destroying an EP that has not been registered should fail and MCC_ERR_ENDPOINT should be returned */
@@ -169,8 +170,8 @@ void tc_1_main_task(void)
     mcc_memcpy((void*)&data_destroy_ep_param, (void*)msg.DATA, (unsigned int)sizeof(struct control_message_data_destroy_ep_param));
     ret_value = mcc_send(&uut_control_endpoint, &msg, sizeof(CONTROL_MESSAGE), 0xffffffff);
     ret_value = mcc_recv_copy(&tea_control_endpoint, &ack_msg, sizeof(ACKNOWLEDGE_MESSAGE), &num_of_received_bytes, 0xffffffff);
-    EU_ASSERT_REF_TC_MSG( tc_1_main_task, CTR_CMD_DESTROY_EP == ack_msg.CMD_ACK, "TEST #1: 1.12 Checking correct CTR_CMD_DESTROY_EP acknowledge message 'CMD_ACK' content");
-    EU_ASSERT_REF_TC_MSG( tc_1_main_task, MCC_ERR_ENDPOINT == ack_msg.RETURN_VALUE, "TEST #1: 1.13 Checking correct CTR_CMD_DESTROY_EP acknowledge message 'RETURN_VALUE' content");
+    EU_ASSERT_REF_TC_MSG( tc_1_main_task, CTR_CMD_DESTROY_EP == ack_msg.CMD_ACK, "TEST #1: 1.13 Checking correct CTR_CMD_DESTROY_EP acknowledge message 'CMD_ACK' content");
+    EU_ASSERT_REF_TC_MSG( tc_1_main_task, MCC_ERR_ENDPOINT == ack_msg.RETURN_VALUE, "TEST #1: 1.14 Checking correct CTR_CMD_DESTROY_EP acknowledge message 'RETURN_VALUE' content");
 
     /* Destroy all created EPs except of TEA and UUT control EPs */
     for(i = 0; i < MCC_ATTR_MAX_RECEIVE_ENDPOINTS-2; i++) {
@@ -180,8 +181,9 @@ void tc_1_main_task(void)
         mcc_memcpy((void*)&data_destroy_ep_param, (void*)msg.DATA, (unsigned int)sizeof(struct control_message_data_destroy_ep_param));
         ret_value = mcc_send(&uut_control_endpoint, &msg, sizeof(CONTROL_MESSAGE), 0xffffffff);
         ret_value = mcc_recv_copy(&tea_control_endpoint, &ack_msg, sizeof(ACKNOWLEDGE_MESSAGE), &num_of_received_bytes, 0xffffffff);
-        EU_ASSERT_REF_TC_MSG( tc_1_main_task, CTR_CMD_DESTROY_EP == ack_msg.CMD_ACK, "TEST #1: 1.13 Checking correct CTR_CMD_DESTROY_EP acknowledge message 'CMD_ACK' content");
-        EU_ASSERT_REF_TC_MSG( tc_1_main_task, MCC_SUCCESS == ack_msg.RETURN_VALUE, "TEST #1: 1.14 Checking correct CTR_CMD_DESTROY_EP acknowledge message 'RETURN_VALUE' content");
+        EU_ASSERT_REF_TC_MSG( tc_1_main_task, CTR_CMD_DESTROY_EP == ack_msg.CMD_ACK, "TEST #1: 1.15 Checking correct CTR_CMD_DESTROY_EP acknowledge message 'CMD_ACK' content");
+        EU_ASSERT_REF_TC_MSG( tc_1_main_task, MCC_SUCCESS == ack_msg.RETURN_VALUE, "TEST #1: 1.16 Checking correct CTR_CMD_DESTROY_EP acknowledge message 'RETURN_VALUE' content");
+        EU_ASSERT_REF_TC_MSG( tc_1_main_task, 0 == strncmp((const char *)ack_msg.RESP_DATA, "MEM_OK", 7), "TEST #1: 1.17 Checking correct CTR_CMD_DESTROY_EP response message content");
     }
 
     /* Creation of the EP with port==MCC_RESERVED_PORT_NUMBER should not be possible - MCC_ERR_ENDPOINT should be returned */
@@ -191,18 +193,28 @@ void tc_1_main_task(void)
     mcc_memcpy((void*)&data_create_ep_param, (void*)msg.DATA, (unsigned int)sizeof(struct control_message_data_create_ep_param));
     ret_value = mcc_send(&uut_control_endpoint, &msg, sizeof(CONTROL_MESSAGE), 0xffffffff);
     ret_value = mcc_recv_copy(&tea_control_endpoint, &ack_msg, sizeof(ACKNOWLEDGE_MESSAGE), &num_of_received_bytes, 0xffffffff);
-    EU_ASSERT_REF_TC_MSG( tc_1_main_task, CTR_CMD_CREATE_EP == ack_msg.CMD_ACK, "TEST #1: 1.15 Checking correct CTR_CMD_CREATE_EP acknowledge message 'CMD_ACK' content");
-    EU_ASSERT_REF_TC_MSG( tc_1_main_task, MCC_ERR_ENDPOINT == ack_msg.RETURN_VALUE, "TEST #1: 1.16 Checking correct CTR_CMD_CREATE_EP acknowledge message 'RETURN_VALUE' content");
+    EU_ASSERT_REF_TC_MSG( tc_1_main_task, CTR_CMD_CREATE_EP == ack_msg.CMD_ACK, "TEST #1: 1.18 Checking correct CTR_CMD_CREATE_EP acknowledge message 'CMD_ACK' content");
+    EU_ASSERT_REF_TC_MSG( tc_1_main_task, MCC_ERR_ENDPOINT == ack_msg.RETURN_VALUE, "TEST #1: 1.19 Checking correct CTR_CMD_CREATE_EP acknowledge message 'RETURN_VALUE' content");
         
+    /* Destroy of the EP with port==MCC_RESERVED_PORT_NUMBER should not be possible - MCC_ERR_ENDPOINT should be returned */
+    msg.CMD = CTR_CMD_DESTROY_EP;
+    msg.ACK_REQUIRED = ACK_REQUIRED_YES;
+    data_destroy_ep_param.uut_endpoint.port = MCC_RESERVED_PORT_NUMBER;
+    mcc_memcpy((void*)&data_destroy_ep_param, (void*)msg.DATA, (unsigned int)sizeof(struct control_message_data_destroy_ep_param));
+    ret_value = mcc_send(&uut_control_endpoint, &msg, sizeof(CONTROL_MESSAGE), 0xffffffff);
+    ret_value = mcc_recv_copy(&tea_control_endpoint, &ack_msg, sizeof(ACKNOWLEDGE_MESSAGE), &num_of_received_bytes, 0xffffffff);
+    EU_ASSERT_REF_TC_MSG( tc_1_main_task, CTR_CMD_DESTROY_EP == ack_msg.CMD_ACK, "TEST #1: 1.20 Checking correct CTR_CMD_DESTROY_EP acknowledge message 'CMD_ACK' content");
+    EU_ASSERT_REF_TC_MSG( tc_1_main_task, MCC_ERR_ENDPOINT == ack_msg.RETURN_VALUE, "TEST #1: 1.21 Checking correct CTR_CMD_DESTROY_EP acknowledge message 'RETURN_VALUE' content");
+
     /* Force mcc_get_info() function to be called on the UUT side and check results */
     msg.CMD = CTR_CMD_GET_INFO;
     msg.ACK_REQUIRED = ACK_REQUIRED_YES;
     mcc_memcpy((void*)&data_get_info_param, (void*)msg.DATA, (unsigned int)sizeof(struct control_message_data_get_info_param));
     ret_value = mcc_send(&uut_control_endpoint, &msg, sizeof(CONTROL_MESSAGE), 0xffffffff);
     ret_value = mcc_recv_copy(&tea_control_endpoint, &ack_msg, sizeof(ACKNOWLEDGE_MESSAGE), &num_of_received_bytes, 0xffffffff);
-    EU_ASSERT_REF_TC_MSG( tc_1_main_task, CTR_CMD_GET_INFO == ack_msg.CMD_ACK, "TEST #1: 1.17 Checking correct CTR_CMD_GET_INFO acknowledge message 'CMD_ACK' content");
-    EU_ASSERT_REF_TC_MSG( tc_1_main_task, MCC_SUCCESS == ack_msg.RETURN_VALUE, "TEST #1: 1.18 Checking correct CTR_CMD_GET_INFO acknowledge message 'RETURN_VALUE' content");
-    EU_ASSERT_REF_TC_MSG( tc_1_main_task, 0 == strncmp((const char *)ack_msg.RESP_DATA, MCC_VERSION_STRING, sizeof(MCC_VERSION_STRING)), "TEST #1: 1.19 Checking correct CTR_CMD_GET_INFO response message content");
+    EU_ASSERT_REF_TC_MSG( tc_1_main_task, CTR_CMD_GET_INFO == ack_msg.CMD_ACK, "TEST #1: 1.22 Checking correct CTR_CMD_GET_INFO acknowledge message 'CMD_ACK' content");
+    EU_ASSERT_REF_TC_MSG( tc_1_main_task, MCC_SUCCESS == ack_msg.RETURN_VALUE, "TEST #1: 1.23 Checking correct CTR_CMD_GET_INFO acknowledge message 'RETURN_VALUE' content");
+    EU_ASSERT_REF_TC_MSG( tc_1_main_task, 0 == strncmp((const char *)ack_msg.RESP_DATA, MCC_VERSION_STRING, sizeof(MCC_VERSION_STRING)), "TEST #1: 1.21 Checking correct CTR_CMD_GET_INFO response message content");
 
 #if PRINT_ON
     _core_mutex_lock(coremutex_app_ptr);
@@ -261,6 +273,7 @@ void tc_2_main_task(void)
     data_send_param.msg_size = CMD_SEND_MSG_SIZE;
     data_send_param.timeout_us = 0xffffffff;
     data_send_param.endpoint_to_ack = tea_control_endpoint;
+    data_send_param.repeat_count = 1;
     
     data_recv_param.uut_endpoint = uut_endpoint;
     data_recv_param.uut_app_buffer_size = UUT_APP_BUF_SIZE;
@@ -400,6 +413,7 @@ void tc_2_main_task(void)
     ret_value = mcc_recv_copy(&tea_control_endpoint, &ack_msg, sizeof(ACKNOWLEDGE_MESSAGE), &num_of_received_bytes, 0xffffffff);
     EU_ASSERT_REF_TC_MSG( tc_2_main_task, CTR_CMD_DESTROY_EP == ack_msg.CMD_ACK, "TEST #2: 2.13 Checking correct CTR_CMD_DESTROY_EP acknowledge message 'CMD_ACK' content");
     EU_ASSERT_REF_TC_MSG( tc_2_main_task, MCC_SUCCESS == ack_msg.RETURN_VALUE, "TEST #2: 2.14 Checking correct CTR_CMD_DESTROY_EP acknowledge message 'RETURN_VALUE' content");
+    EU_ASSERT_REF_TC_MSG( tc_2_main_task, 0 == strncmp((const char *)ack_msg.RESP_DATA, "MEM_OK", 7), "TEST #2: 2.15 Checking correct CTR_CMD_DESTROY_EP response message content");
 
     mcc_destroy_endpoint(&tea_endpoint);
 }
@@ -455,6 +469,7 @@ void tc_3_main_task(void)
     data_send_param.timeout_us = 0xffffffff;
     data_send_param.uut_endpoint = uut_endpoint;
     data_send_param.endpoint_to_ack = tea_control_endpoint;
+    data_send_param.repeat_count = 1;
     
     data_recv_param.uut_endpoint = uut_endpoint;
     data_recv_param.uut_app_buffer_size = UUT_APP_BUF_SIZE;
@@ -596,6 +611,7 @@ void tc_3_main_task(void)
     ret_value = mcc_recv_copy(&tea_control_endpoint, &ack_msg, sizeof(ACKNOWLEDGE_MESSAGE), &num_of_received_bytes, 0xffffffff);
     EU_ASSERT_REF_TC_MSG( tc_3_main_task, CTR_CMD_DESTROY_EP == ack_msg.CMD_ACK, "TEST #3: 3.13 Checking correct CTR_CMD_DESTROY_EP acknowledge message 'CMD_ACK' content");
     EU_ASSERT_REF_TC_MSG( tc_3_main_task, MCC_SUCCESS == ack_msg.RETURN_VALUE, "TEST #3: 3.14 Checking correct CTR_CMD_DESTROY_EP acknowledge message 'RETURN_VALUE' content");
+    EU_ASSERT_REF_TC_MSG( tc_3_main_task, 0 == strncmp((const char *)ack_msg.RESP_DATA, "MEM_OK", 7), "TEST #3: 3.15 Checking correct CTR_CMD_DESTROY_EP response message content");
 
     mcc_destroy_endpoint(&tea_endpoint);
 }
@@ -666,6 +682,7 @@ void tc_4_main_task(void)
     ret_value = mcc_recv_copy(&tea_control_endpoint, &ack_msg, sizeof(ACKNOWLEDGE_MESSAGE), &num_of_received_bytes, 0xffffffff);
     EU_ASSERT_REF_TC_MSG( tc_4_main_task, CTR_CMD_CREATE_EP == ack_msg.CMD_ACK, "TEST #4: 4.3 Checking correct CTR_CMD_CREATE_EP acknowledge message 'CMD_ACK' content");
     EU_ASSERT_REF_TC_MSG( tc_4_main_task, MCC_SUCCESS == ack_msg.RETURN_VALUE, "TEST #4: 4.4 Checking correct CTR_CMD_CREATE_EP acknowledge message 'RETURN_VALUE' content");
+    EU_ASSERT_REF_TC_MSG( tc_4_main_task, 0 == strncmp((const char *)ack_msg.RESP_DATA, "MEM_OK", 7), "TEST #4: 4.5 Checking correct CTR_CMD_CREATE_EP response message content");
 
     /* Send maximum possible number of messages to the uut EP, consider that one buffers has to be left for control messages exchange */
     /* wait until the uut endpoint is created by the other core */
@@ -680,16 +697,16 @@ void tc_4_main_task(void)
        }
     }
 
-    EU_ASSERT_REF_TC_MSG( tc_4_main_task, sent_msg_num == MCC_ATTR_NUM_RECEIVE_BUFFERS-1, "TEST #4: 4.5 Checking correct number of sent messages");
+    EU_ASSERT_REF_TC_MSG( tc_4_main_task, sent_msg_num == MCC_ATTR_NUM_RECEIVE_BUFFERS-1, "TEST #4: 4.6 Checking correct number of sent messages");
 
     msg.CMD = CTR_CMD_MSG_AVAIL;
     msg.ACK_REQUIRED = ACK_REQUIRED_YES;
     mcc_memcpy((void*)&data_msg_avail_param, (void*)msg.DATA, (unsigned int)sizeof(struct control_message_data_msg_avail_param));
     mcc_send(&uut_control_endpoint, &msg, sizeof(CONTROL_MESSAGE), 0xffffffff);
     ret_value = mcc_recv_copy(&tea_control_endpoint, &ack_msg, sizeof(ACKNOWLEDGE_MESSAGE), &num_of_received_bytes, 0xffffffff);
-    EU_ASSERT_REF_TC_MSG( tc_4_main_task, CTR_CMD_MSG_AVAIL == ack_msg.CMD_ACK, "TEST #4: 4.6 Checking CTR_CMD_MSG_AVAIL correct acknowledge message 'CMD_ACK' content");
-    EU_ASSERT_REF_TC_MSG( tc_4_main_task, MCC_SUCCESS == ack_msg.RETURN_VALUE, "TEST #4: 4.7 Checking CTR_CMD_MSG_AVAIL correct acknowledge message 'RETURN_VALUE' content");
-    EU_ASSERT_REF_TC_MSG( tc_4_main_task, sent_msg_num == *(unsigned int*)ack_msg.RESP_DATA, "TEST #4: 4.8 Checking correct CTR_CMD_MSG_AVAIL acknowledge message 'RESP_DATA' content");
+    EU_ASSERT_REF_TC_MSG( tc_4_main_task, CTR_CMD_MSG_AVAIL == ack_msg.CMD_ACK, "TEST #4: 4.7 Checking CTR_CMD_MSG_AVAIL correct acknowledge message 'CMD_ACK' content");
+    EU_ASSERT_REF_TC_MSG( tc_4_main_task, MCC_SUCCESS == ack_msg.RETURN_VALUE, "TEST #4: 4.8 Checking CTR_CMD_MSG_AVAIL correct acknowledge message 'RETURN_VALUE' content");
+    EU_ASSERT_REF_TC_MSG( tc_4_main_task, sent_msg_num == *(unsigned int*)ack_msg.RESP_DATA, "TEST #4: 4.9 Checking correct CTR_CMD_MSG_AVAIL acknowledge message 'RESP_DATA' content");
 #if PRINT_ON
             _core_mutex_lock(coremutex_app_ptr);
             printf("sent_msg_num =%x, RESP_DATA = %x\n", sent_msg_num, *(unsigned int*)ack_msg.RESP_DATA);
@@ -703,8 +720,8 @@ void tc_4_main_task(void)
     for(i = 0; i < sent_msg_num; i++) {
         mcc_send(&uut_control_endpoint, &msg, sizeof(CONTROL_MESSAGE), 0xffffffff);
         ret_value = mcc_recv_copy(&tea_control_endpoint, &ack_msg, sizeof(ACKNOWLEDGE_MESSAGE), &num_of_received_bytes, 0xffffffff);
-        EU_ASSERT_REF_TC_MSG( tc_4_main_task, CTR_CMD_RECV == ack_msg.CMD_ACK, "TEST #4: 4.9 Checking correct CTR_CMD_RECV acknowledge message 'CMD_ACK' content");
-        EU_ASSERT_REF_TC_MSG( tc_4_main_task, MCC_SUCCESS == ack_msg.RETURN_VALUE, "TEST #4: 4.10 Checking correct CTR_CMD_RECV acknowledge message 'RETURN_VALUE' content");
+        EU_ASSERT_REF_TC_MSG( tc_4_main_task, CTR_CMD_RECV == ack_msg.CMD_ACK, "TEST #4: 4.10 Checking correct CTR_CMD_RECV acknowledge message 'CMD_ACK' content");
+        EU_ASSERT_REF_TC_MSG( tc_4_main_task, MCC_SUCCESS == ack_msg.RETURN_VALUE, "TEST #4: 4.11 Checking correct CTR_CMD_RECV acknowledge message 'RETURN_VALUE' content");
     }
 
     /* Destroy EPs */
@@ -713,8 +730,9 @@ void tc_4_main_task(void)
     mcc_memcpy((void*)&data_destroy_ep_param, (void*)msg.DATA, (unsigned int)sizeof(struct control_message_data_destroy_ep_param));
     mcc_send(&uut_control_endpoint, &msg, sizeof(CONTROL_MESSAGE), 0xffffffff);
     ret_value = mcc_recv_copy(&tea_control_endpoint, &ack_msg, sizeof(ACKNOWLEDGE_MESSAGE), &num_of_received_bytes, 0xffffffff);
-    EU_ASSERT_REF_TC_MSG( tc_4_main_task, CTR_CMD_DESTROY_EP == ack_msg.CMD_ACK, "TEST #4: 4.11 Checking correct CTR_CMD_DESTROY_EP acknowledge message 'CMD_ACK' content");
-    EU_ASSERT_REF_TC_MSG( tc_4_main_task, MCC_SUCCESS == ack_msg.RETURN_VALUE, "TEST #4: 4.12 Checking correct CTR_CMD_DESTROY_EP acknowledge message 'RETURN_VALUE' content");
+    EU_ASSERT_REF_TC_MSG( tc_4_main_task, CTR_CMD_DESTROY_EP == ack_msg.CMD_ACK, "TEST #4: 4.12 Checking correct CTR_CMD_DESTROY_EP acknowledge message 'CMD_ACK' content");
+    EU_ASSERT_REF_TC_MSG( tc_4_main_task, MCC_SUCCESS == ack_msg.RETURN_VALUE, "TEST #4: 4.13 Checking correct CTR_CMD_DESTROY_EP acknowledge message 'RETURN_VALUE' content");
+    EU_ASSERT_REF_TC_MSG( tc_4_main_task, 0 == strncmp((const char *)ack_msg.RESP_DATA, "MEM_OK", 7), "TEST #4: 4.14 Checking correct CTR_CMD_DESTROY_EP response message content");
 
     mcc_destroy_endpoint(&tea_endpoint);
 }
@@ -746,27 +764,18 @@ void tc_5_main_task(void)
     CONTROL_MESSAGE msg;
     ACKNOWLEDGE_MESSAGE ack_msg;
     MCC_MEM_SIZE    num_of_received_bytes;
-    int             ret_value, i;
+    int             ret_value;
     CONTROL_MESSAGE_DATA_CREATE_EP_PARAM data_create_ep_param;
     CONTROL_MESSAGE_DATA_DESTROY_EP_PARAM data_destroy_ep_param;
-    CONTROL_MESSAGE_DATA_SEND_PARAM data_send_param;
     CONTROL_MESSAGE_DATA_RECV_PARAM data_recv_param;
     MCC_ENDPOINT    uut_endpoint =  {MCC_UUT_CORE,MCC_UUT_NODE,MCC_UUT_EP_PORT};
     MCC_ENDPOINT    tea_endpoint =  {MCC_TEA_CORE,MCC_TEA_NODE,MCC_TEA_EP_PORT};
-    char            tea_app_buffer[TEA_APP_BUF_SIZE];
 
     data_create_ep_param.uut_endpoint = uut_endpoint;
     data_create_ep_param.uut_app_buffer_size = UUT_APP_BUF_SIZE;
 
     data_destroy_ep_param.uut_endpoint = uut_endpoint;
     data_destroy_ep_param.endpoint_to_ack = tea_control_endpoint;
-
-    data_send_param.dest_endpoint = tea_endpoint;
-    mcc_memcpy("", (void*)data_send_param.msg, (unsigned int)4);
-    data_send_param.msg_size = CMD_SEND_MSG_SIZE;
-    data_send_param.timeout_us = CMD_SEND_TIMEOUT_US; /* 1 seconds timeout */
-    data_send_param.uut_endpoint = uut_endpoint;
-    data_send_param.endpoint_to_ack = tea_control_endpoint;
 
     data_recv_param.uut_endpoint = uut_endpoint;
     data_recv_param.uut_app_buffer_size = UUT_APP_BUF_SIZE;
@@ -907,6 +916,7 @@ void tc_5_main_task(void)
     ret_value = mcc_recv_copy(&tea_control_endpoint, &ack_msg, sizeof(ACKNOWLEDGE_MESSAGE), &num_of_received_bytes, 0xffffffff);
     EU_ASSERT_REF_TC_MSG( tc_5_main_task, CTR_CMD_DESTROY_EP == ack_msg.CMD_ACK, "TEST #5: 5.23 Checking correct CTR_CMD_DESTROY_EP acknowledge message 'CMD_ACK' content");
     EU_ASSERT_REF_TC_MSG( tc_5_main_task, MCC_SUCCESS == ack_msg.RETURN_VALUE, "TEST #5: 5.24 Checking correct CTR_CMD_DESTROY_EP acknowledge message 'RETURN_VALUE' content");
+    EU_ASSERT_REF_TC_MSG( tc_5_main_task, 0 == strncmp((const char *)ack_msg.RESP_DATA, "MEM_OK", 7), "TEST #5: 5.25 Checking correct CTR_CMD_DESTROY_EP response message content");
 
     msg.CMD = CTR_CMD_DESTROY_EP;
     data_destroy_ep_param.uut_endpoint.port += 1;
@@ -914,8 +924,9 @@ void tc_5_main_task(void)
     mcc_memcpy((void*)&data_destroy_ep_param, (void*)msg.DATA, (unsigned int)sizeof(struct control_message_data_destroy_ep_param));
     mcc_send(&uut_control_endpoint, &msg, sizeof(CONTROL_MESSAGE), 0xffffffff);
     ret_value = mcc_recv_copy(&tea_control_endpoint, &ack_msg, sizeof(ACKNOWLEDGE_MESSAGE), &num_of_received_bytes, 0xffffffff);
-    EU_ASSERT_REF_TC_MSG( tc_5_main_task, CTR_CMD_DESTROY_EP == ack_msg.CMD_ACK, "TEST #5: 5.25 Checking correct CTR_CMD_DESTROY_EP acknowledge message 'CMD_ACK' content");
-    EU_ASSERT_REF_TC_MSG( tc_5_main_task, MCC_SUCCESS == ack_msg.RETURN_VALUE, "TEST #5: 5.26 Checking correct CTR_CMD_DESTROY_EP acknowledge message 'RETURN_VALUE' content");
+    EU_ASSERT_REF_TC_MSG( tc_5_main_task, CTR_CMD_DESTROY_EP == ack_msg.CMD_ACK, "TEST #5: 5.26 Checking correct CTR_CMD_DESTROY_EP acknowledge message 'CMD_ACK' content");
+    EU_ASSERT_REF_TC_MSG( tc_5_main_task, MCC_SUCCESS == ack_msg.RETURN_VALUE, "TEST #5: 5.27 Checking correct CTR_CMD_DESTROY_EP acknowledge message 'RETURN_VALUE' content");
+    EU_ASSERT_REF_TC_MSG( tc_5_main_task, 0 == strncmp((const char *)ack_msg.RESP_DATA, "MEM_OK", 7), "TEST #5: 5.28 Checking correct CTR_CMD_DESTROY_EP response message content");
 
     mcc_destroy_endpoint(&tea_endpoint);
 }
@@ -923,20 +934,133 @@ void tc_5_main_task(void)
 /*TASK*--------------------------------------------------------------------
 *
 * Task Name    : tc_6_main_task
-* Comments     : TEST #6: Testing MCC deinitialization
+* Comments     : TEST #6: Testing MCC send timeouts
+*                - One EP on TEA side is created.
+*                - One EP on UUT side are created.
+*                - CTR_CMD_SEND cmd is issued with
+*                  repeat_count = MCC_ATTR_NUM_RECEIVE_BUFFERS+1
+*                  (i.e. more than maximum configured number of messages
+*                  will be sent to TEA EP) and with
+*                  timeout_us == CMD_SEND_TIMEOUT_US (i.e. wait for a free
+*                  buffer maximum 1 second). No buffer is freed on the TEA side
+*                  and the timer expires.
+*                - Now, when only one buffer is free, issue two CTR_CMD_SEND
+*                  commands on the UUT side. UUT side waits for a free buffer
+*                  until the timeout expires, one buffer is freed at half
+*                  of the timeout on the TEA side.
+*                - Release all messages sent to the TEA EP.
+*                - Destroy all EPs.
+*
+*END*---------------------------------------------------------------------*/
+void tc_6_main_task(void)
+{
+    CONTROL_MESSAGE msg;
+    ACKNOWLEDGE_MESSAGE ack_msg;
+    MCC_MEM_SIZE    num_of_received_bytes;
+    int             ret_value;
+    CONTROL_MESSAGE_DATA_CREATE_EP_PARAM data_create_ep_param;
+    CONTROL_MESSAGE_DATA_DESTROY_EP_PARAM data_destroy_ep_param;
+    CONTROL_MESSAGE_DATA_SEND_PARAM data_send_param;
+    MCC_ENDPOINT    uut_endpoint =  {MCC_UUT_CORE,MCC_UUT_NODE,MCC_UUT_EP_PORT};
+    MCC_ENDPOINT    tea_endpoint =  {MCC_TEA_CORE,MCC_TEA_NODE,MCC_TEA_EP_PORT};
+    char            tea_app_buffer[TEA_APP_BUF_SIZE];
+
+    data_create_ep_param.uut_endpoint = uut_endpoint;
+    data_create_ep_param.uut_app_buffer_size = UUT_APP_BUF_SIZE;
+
+    data_destroy_ep_param.uut_endpoint = uut_endpoint;
+    data_destroy_ep_param.endpoint_to_ack = tea_control_endpoint;
+
+    data_send_param.dest_endpoint = tea_endpoint;
+    mcc_memcpy("xxx", (void*)data_send_param.msg, (unsigned int)4);
+    data_send_param.msg_size = CMD_SEND_MSG_SIZE;
+    data_send_param.timeout_us = CMD_SEND_TIMEOUT_US; /* 1 seconds timeout */
+    data_send_param.uut_endpoint = uut_endpoint;
+    data_send_param.endpoint_to_ack = tea_control_endpoint;
+    data_send_param.repeat_count = MCC_ATTR_NUM_RECEIVE_BUFFERS+1;
+
+    mcc_create_endpoint(&tea_endpoint, tea_endpoint.port);
+
+    msg.CMD = CTR_CMD_CREATE_EP;
+    msg.ACK_REQUIRED = ACK_REQUIRED_NO;
+    mcc_memcpy((void*)&data_create_ep_param, (void*)msg.DATA, (unsigned int)sizeof(struct control_message_data_create_ep_param));
+    /* wait until the uut control endpoint is created by the other core */
+    while(MCC_ERR_ENDPOINT == mcc_send(&uut_control_endpoint, &msg, sizeof(CONTROL_MESSAGE), 0xffffffff)) {
+    }
+
+    /* UUT side waits for a free buffer until the timeout expires, no buffer is freed on the TEA side. */
+    msg.CMD = CTR_CMD_SEND;
+    msg.ACK_REQUIRED = ACK_REQUIRED_YES;
+    mcc_memcpy((void*)&data_send_param, (void*)msg.DATA, (unsigned int)sizeof(struct control_message_data_send_param));
+    mcc_send(&uut_control_endpoint, &msg, sizeof(CONTROL_MESSAGE), 0xffffffff);
+    _time_delay(CMD_SEND_TIMEOUT_US/1000*2);
+    ret_value = mcc_recv_copy(&tea_endpoint, &tea_app_buffer, TEA_APP_BUF_SIZE, &num_of_received_bytes, 0xffffffff);
+    EU_ASSERT_REF_TC_MSG( tc_6_main_task, 0 == strncmp(tea_app_buffer, "xxx", 3), "TEST #6: 6.1 Checking correct response message content");
+
+    ret_value = mcc_recv_copy(&tea_control_endpoint, &ack_msg, sizeof(ACKNOWLEDGE_MESSAGE), &num_of_received_bytes, 0xffffffff);
+    EU_ASSERT_REF_TC_MSG( tc_6_main_task, CTR_CMD_SEND == ack_msg.CMD_ACK, "TEST #6: 6.2 Checking correct CTR_CMD_SEND acknowledge message 'CMD_ACK' content");
+    EU_ASSERT_REF_TC_MSG( tc_6_main_task, MCC_ERR_TIMEOUT == ack_msg.RETURN_VALUE, "TEST #6: 6.3 Checking correct CTR_CMD_SEND acknowledge message 'RETURN_VALUE' content");
+    //ret_value = ((1000 * ack_msg.TS2_MSEC) + (1000000 * ack_msg.TS2_SEC) - (1000 * ack_msg.TS1_MSEC) - (1000000 * ack_msg.TS1_SEC));
+    EU_ASSERT_REF_TC_MSG( tc_6_main_task, (CMD_SEND_TIMEOUT_US*0.8 < ((1000 * ack_msg.TS2_MSEC) + (1000000 * ack_msg.TS2_SEC) - (1000 * ack_msg.TS1_MSEC) - (1000000 * ack_msg.TS1_SEC)) < CMD_SEND_TIMEOUT_US*1.2), "TEST #6: 6.4 Checking correct send timeout");
+
+
+    /* Now, when only one buffer is free, issue two CTR_CMD_SEND commands on the UUT side.
+     * UUT side waits for a free buffer until the timeout expires, one buffer is freed at half of the timeout on the TEA side. */
+    data_send_param.repeat_count = 2;
+    msg.CMD = CTR_CMD_SEND;
+    msg.ACK_REQUIRED = ACK_REQUIRED_YES;
+    mcc_memcpy((void*)&data_send_param, (void*)msg.DATA, (unsigned int)sizeof(struct control_message_data_send_param));
+    mcc_send(&uut_control_endpoint, &msg, sizeof(CONTROL_MESSAGE), 0xffffffff);
+    _time_delay(CMD_SEND_TIMEOUT_US/1000/2);
+    /* This read frees one buffer for send timeout wakeup. */
+    ret_value = mcc_recv_copy(&tea_endpoint, &tea_app_buffer, TEA_APP_BUF_SIZE, &num_of_received_bytes, 0xffffffff);
+    EU_ASSERT_REF_TC_MSG( tc_6_main_task, 0 == strncmp(tea_app_buffer, "xxx", 3), "TEST #6: 6.5 Checking correct response message content");
+    /* This read frees one buffer for ACK message to be sent back to the TEA. */
+    ret_value = mcc_recv_copy(&tea_endpoint, &tea_app_buffer, TEA_APP_BUF_SIZE, &num_of_received_bytes, 0xffffffff);
+    EU_ASSERT_REF_TC_MSG( tc_6_main_task, 0 == strncmp(tea_app_buffer, "xxx", 3), "TEST #6: 6.6 Checking correct response message content");
+
+    ret_value = mcc_recv_copy(&tea_control_endpoint, &ack_msg, sizeof(ACKNOWLEDGE_MESSAGE), &num_of_received_bytes, 0xffffffff);
+    EU_ASSERT_REF_TC_MSG( tc_6_main_task, CTR_CMD_SEND == ack_msg.CMD_ACK, "TEST #6: 6.7 Checking correct CTR_CMD_SEND acknowledge message 'CMD_ACK' content");
+    EU_ASSERT_REF_TC_MSG( tc_6_main_task, MCC_SUCCESS == ack_msg.RETURN_VALUE, "TEST #6: 6.8 Checking correct CTR_CMD_SEND acknowledge message 'RETURN_VALUE' content");
+    //ret_value = ((1000 * ack_msg.TS2_MSEC) + (1000000 * ack_msg.TS2_SEC) - (1000 * ack_msg.TS1_MSEC) - (1000000 * ack_msg.TS1_SEC));
+    EU_ASSERT_REF_TC_MSG( tc_6_main_task, (CMD_SEND_TIMEOUT_US/2*0.8 < ((1000 * ack_msg.TS2_MSEC) + (1000000 * ack_msg.TS2_SEC) - (1000 * ack_msg.TS1_MSEC) - (1000000 * ack_msg.TS1_SEC)) < CMD_SEND_TIMEOUT_US/2*1.2), "TEST #6: 6.9 Checking correct send timeout");
+
+
+    /* Release all messages sent to the TEA EP */
+    while (MCC_SUCCESS == mcc_recv_copy(&tea_endpoint, &tea_app_buffer, TEA_APP_BUF_SIZE, &num_of_received_bytes, 0)) {
+        EU_ASSERT_REF_TC_MSG( tc_6_main_task, 0 == strncmp(tea_app_buffer, "xxx", 3), "TEST #6: 6.10 Checking correct response message content");
+    }
+
+    /* Destroy EPs */
+    msg.CMD = CTR_CMD_DESTROY_EP;
+    msg.ACK_REQUIRED = ACK_REQUIRED_YES;
+    mcc_memcpy((void*)&data_destroy_ep_param, (void*)msg.DATA, (unsigned int)sizeof(struct control_message_data_destroy_ep_param));
+    mcc_send(&uut_control_endpoint, &msg, sizeof(CONTROL_MESSAGE), 0xffffffff);
+    ret_value = mcc_recv_copy(&tea_control_endpoint, &ack_msg, sizeof(ACKNOWLEDGE_MESSAGE), &num_of_received_bytes, 0xffffffff);
+    EU_ASSERT_REF_TC_MSG( tc_6_main_task, CTR_CMD_DESTROY_EP == ack_msg.CMD_ACK, "TEST #6: 3.11 Checking correct CTR_CMD_DESTROY_EP acknowledge message 'CMD_ACK' content");
+    EU_ASSERT_REF_TC_MSG( tc_6_main_task, MCC_SUCCESS == ack_msg.RETURN_VALUE, "TEST #6: 6.12 Checking correct CTR_CMD_DESTROY_EP acknowledge message 'RETURN_VALUE' content");
+    EU_ASSERT_REF_TC_MSG( tc_6_main_task, 0 == strncmp((const char *)ack_msg.RESP_DATA, "MEM_OK", 7), "TEST #6: 6.13 Checking correct CTR_CMD_DESTROY_EP response message content");
+
+    mcc_destroy_endpoint(&tea_endpoint);
+}
+
+/*TASK*--------------------------------------------------------------------
+*
+* Task Name    : tc_7_main_task
+* Comments     : TEST #7: Testing MCC deinitialization
 *                - TEA control endpoint is destroyed.
 *                - MCC is destroyed.
 *
 *END*---------------------------------------------------------------------*/
-void tc_6_main_task(void)
+void tc_7_main_task(void)
 {
     int           ret_value;
 
     /* Destroy TEA control endpoint */
     ret_value = mcc_destroy_endpoint(&tea_control_endpoint);
-    EU_ASSERT_REF_TC_MSG( tc_5_main_task, ret_value == MCC_SUCCESS, "TEST #6: 6.1 Destroying TEA control endpoint");
+    EU_ASSERT_REF_TC_MSG( tc_7_main_task, ret_value == MCC_SUCCESS, "TEST #7: 7.1 Destroying TEA control endpoint");
     ret_value = mcc_destroy(MCC_TEA_NODE);
-    EU_ASSERT_REF_TC_MSG( tc_5_main_task, ret_value == MCC_SUCCESS, "TEST #6: 6.2 Destroying MCC");
+    EU_ASSERT_REF_TC_MSG( tc_7_main_task, ret_value == MCC_SUCCESS, "TEST #7: 7.2 Destroying MCC");
 }
 
 //------------------------------------------------------------------------
@@ -947,7 +1071,8 @@ void tc_6_main_task(void)
     EU_TEST_CASE_ADD(tc_3_main_task, " TEST #3 - Testing MCC pingpong2"),
     EU_TEST_CASE_ADD(tc_4_main_task, " TEST #4 - Testing MCC mcc_msgs_available functionality"),
     EU_TEST_CASE_ADD(tc_5_main_task, " TEST #5 - Testing MCC recv timeouts"),
-    EU_TEST_CASE_ADD(tc_6_main_task, " TEST #6 - Testing MCC deinitialization"),
+    EU_TEST_CASE_ADD(tc_6_main_task, " TEST #6 - Testing MCC send timeouts"),
+    EU_TEST_CASE_ADD(tc_7_main_task, " TEST #7 - Testing MCC deinitialization"),
  EU_TEST_SUITE_END(suite_mcc)
 // Add test suites
  EU_TEST_REGISTRY_BEGIN()

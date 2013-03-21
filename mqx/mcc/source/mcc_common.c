@@ -58,27 +58,27 @@ MCC_BOOKEEPING_STRUCT * bookeeping_data;
  */
 int mcc_register_endpoint(MCC_ENDPOINT endpoint)
 {
-	int i;
+    int i;
 
-	/* must be valid */
-	if(endpoint.port == MCC_RESERVED_PORT_NUMBER)
-		return MCC_ERR_ENDPOINT;
+    /* must be valid */
+    if(endpoint.port == MCC_RESERVED_PORT_NUMBER)
+        return MCC_ERR_ENDPOINT;
 
-	/* check not already registered */
-	if(mcc_get_endpoint_list(endpoint))
-		return MCC_ERR_ENDPOINT;
+    /* check not already registered */
+    if(mcc_get_endpoint_list(endpoint))
+        return MCC_ERR_ENDPOINT;
 
-	MCC_DCACHE_INVALIDATE_MLINES(&bookeeping_data->endpoint_table[0], MCC_ATTR_MAX_RECEIVE_ENDPOINTS * sizeof(MCC_ENDPOINT_MAP_ITEM));
-	for(i = 0; i < MCC_ATTR_MAX_RECEIVE_ENDPOINTS; i++) {
-		if(bookeeping_data->endpoint_table[i].endpoint.port == MCC_RESERVED_PORT_NUMBER) {
-			bookeeping_data->endpoint_table[i].endpoint.core = endpoint.core;
-			bookeeping_data->endpoint_table[i].endpoint.node = endpoint.node;
-			bookeeping_data->endpoint_table[i].endpoint.port = endpoint.port;
-			MCC_DCACHE_FLUSH_MLINES(&bookeeping_data->endpoint_table[i], sizeof(MCC_ENDPOINT_MAP_ITEM));
-			return MCC_SUCCESS;
-		}
-	}
-	return MCC_ERR_NOMEM;
+    MCC_DCACHE_INVALIDATE_MLINES(&bookeeping_data->endpoint_table[0], MCC_ATTR_MAX_RECEIVE_ENDPOINTS * sizeof(MCC_ENDPOINT_MAP_ITEM));
+    for(i = 0; i < MCC_ATTR_MAX_RECEIVE_ENDPOINTS; i++) {
+        if(bookeeping_data->endpoint_table[i].endpoint.port == MCC_RESERVED_PORT_NUMBER) {
+            bookeeping_data->endpoint_table[i].endpoint.core = endpoint.core;
+            bookeeping_data->endpoint_table[i].endpoint.node = endpoint.node;
+            bookeeping_data->endpoint_table[i].endpoint.port = endpoint.port;
+            MCC_DCACHE_FLUSH_MLINES(&bookeeping_data->endpoint_table[i], sizeof(MCC_ENDPOINT_MAP_ITEM));
+            return MCC_SUCCESS;
+        }
+    }
+    return MCC_ERR_NOMEM;
 }
 
 /*!
@@ -89,36 +89,41 @@ int mcc_register_endpoint(MCC_ENDPOINT endpoint)
  * \param[in] endpoint Pointer to the endpoint structure.
  *
  * \return MCC_SUCCESS
- * \return MCC_ERR_ENDPOINT (the endpoint doesn't exist)
+ * \return MCC_ERR_ENDPOINT (invalid value for port or the endpoint doesn't exist)
  */
 int mcc_remove_endpoint(MCC_ENDPOINT endpoint)
 {
-	int i=0;
-	MCC_DCACHE_INVALIDATE_MLINES(&bookeeping_data->endpoint_table[0], MCC_ATTR_MAX_RECEIVE_ENDPOINTS * sizeof(MCC_ENDPOINT_MAP_ITEM));
-	for(i = 0; i < MCC_ATTR_MAX_RECEIVE_ENDPOINTS; i++) {
+    int i=0;
 
-		if(MCC_ENDPOINTS_EQUAL(bookeeping_data->endpoint_table[i].endpoint, endpoint)) {
-			/* clear the queue */
+    /* must be valid */
+    if(endpoint.port == MCC_RESERVED_PORT_NUMBER)
+        return MCC_ERR_ENDPOINT;
+
+    MCC_DCACHE_INVALIDATE_MLINES(&bookeeping_data->endpoint_table[0], MCC_ATTR_MAX_RECEIVE_ENDPOINTS * sizeof(MCC_ENDPOINT_MAP_ITEM));
+    for(i = 0; i < MCC_ATTR_MAX_RECEIVE_ENDPOINTS; i++) {
+
+        if(MCC_ENDPOINTS_EQUAL(bookeeping_data->endpoint_table[i].endpoint, endpoint)) {
+            /* clear the queue */
 #if (MCC_OS_USED == MCC_LINUX)
-			MCC_RECEIVE_BUFFER * buffer = mcc_dequeue_buffer((MCC_RECEIVE_LIST *)MQX_TO_VIRT(&bookeeping_data->endpoint_table[i].list));
-			while(buffer) {
-				mcc_queue_buffer((MCC_RECEIVE_LIST *)MQX_TO_VIRT(&bookeeping_data->free_list), buffer);
-				buffer = mcc_dequeue_buffer((MCC_RECEIVE_LIST *)MQX_TO_VIRT(&bookeeping_data->endpoint_table[i].list));
-			}
+            MCC_RECEIVE_BUFFER * buffer = mcc_dequeue_buffer((MCC_RECEIVE_LIST *)MQX_TO_VIRT(&bookeeping_data->endpoint_table[i].list));
+            while(buffer) {
+                mcc_queue_buffer((MCC_RECEIVE_LIST *)MQX_TO_VIRT(&bookeeping_data->free_list), buffer);
+                buffer = mcc_dequeue_buffer((MCC_RECEIVE_LIST *)MQX_TO_VIRT(&bookeeping_data->endpoint_table[i].list));
+            }
 #elif (MCC_OS_USED == MCC_MQX)
-			MCC_RECEIVE_BUFFER * buffer = mcc_dequeue_buffer((MCC_RECEIVE_LIST *)&bookeeping_data->endpoint_table[i].list);
-			while(buffer) {
-				mcc_queue_buffer(&bookeeping_data->free_list, buffer);
-				buffer = mcc_dequeue_buffer((MCC_RECEIVE_LIST *)&bookeeping_data->endpoint_table[i].list);
-			}
+            MCC_RECEIVE_BUFFER * buffer = mcc_dequeue_buffer((MCC_RECEIVE_LIST *)&bookeeping_data->endpoint_table[i].list);
+            while(buffer) {
+                mcc_queue_buffer(&bookeeping_data->free_list, buffer);
+                buffer = mcc_dequeue_buffer((MCC_RECEIVE_LIST *)&bookeeping_data->endpoint_table[i].list);
+            }
 #endif
-			/* indicate free */
-			bookeeping_data->endpoint_table[i].endpoint.port = MCC_RESERVED_PORT_NUMBER;
-			MCC_DCACHE_FLUSH_MLINES((void*)&bookeeping_data->endpoint_table[i].endpoint.port, sizeof(MCC_PORT));
-			return MCC_SUCCESS;
-		}
-	}
-	return MCC_ERR_ENDPOINT;
+            /* indicate free */
+            bookeeping_data->endpoint_table[i].endpoint.port = MCC_RESERVED_PORT_NUMBER;
+            MCC_DCACHE_FLUSH_MLINES((void*)&bookeeping_data->endpoint_table[i].endpoint.port, sizeof(MCC_PORT));
+            return MCC_SUCCESS;
+        }
+    }
+    return MCC_ERR_ENDPOINT;
 }
 
 /*!
@@ -132,28 +137,28 @@ int mcc_remove_endpoint(MCC_ENDPOINT endpoint)
  */
 MCC_RECEIVE_BUFFER * mcc_dequeue_buffer(MCC_RECEIVE_LIST *list)
 {
-	MCC_DCACHE_INVALIDATE_MLINES((void*)list, sizeof(MCC_RECEIVE_LIST));
-	MCC_RECEIVE_BUFFER * next_buf = list->head;
+    MCC_DCACHE_INVALIDATE_MLINES((void*)list, sizeof(MCC_RECEIVE_LIST));
+    MCC_RECEIVE_BUFFER * next_buf = list->head;
 
 #if (MCC_OS_USED == MCC_LINUX)
-	MCC_RECEIVE_BUFFER * next_buf_virt = (MCC_RECEIVE_BUFFER *)MQX_TO_VIRT(next_buf);
-	if(next_buf) {
-		MCC_DCACHE_INVALIDATE_MLINES((void*)&next_buf_virt->next, sizeof(MCC_RECEIVE_BUFFER*));
-		list->head = next_buf_virt->next;
-		if(list->tail == next_buf)
-			list->tail = null;
-	}
-	MCC_DCACHE_FLUSH_MLINES(list, sizeof(MCC_RECEIVE_LIST));
-	return next_buf_virt;
+    MCC_RECEIVE_BUFFER * next_buf_virt = (MCC_RECEIVE_BUFFER *)MQX_TO_VIRT(next_buf);
+    if(next_buf) {
+        MCC_DCACHE_INVALIDATE_MLINES((void*)&next_buf_virt->next, sizeof(MCC_RECEIVE_BUFFER*));
+        list->head = next_buf_virt->next;
+        if(list->tail == next_buf)
+            list->tail = null;
+    }
+    MCC_DCACHE_FLUSH_MLINES(list, sizeof(MCC_RECEIVE_LIST));
+    return next_buf_virt;
 #elif (MCC_OS_USED == MCC_MQX)
-	if(next_buf) {
-		MCC_DCACHE_INVALIDATE_MLINES((void*)&next_buf->next, sizeof(MCC_RECEIVE_BUFFER*));
-		list->head = next_buf->next;
-		if(list->tail == next_buf)
-			list->tail = null;
-	}
-	MCC_DCACHE_FLUSH_MLINES(list, sizeof(MCC_RECEIVE_LIST));
-	return next_buf;
+    if(next_buf) {
+        MCC_DCACHE_INVALIDATE_MLINES((void*)&next_buf->next, sizeof(MCC_RECEIVE_BUFFER*));
+        list->head = next_buf->next;
+        if(list->tail == next_buf)
+            list->tail = null;
+    }
+    MCC_DCACHE_FLUSH_MLINES(list, sizeof(MCC_RECEIVE_LIST));
+    return next_buf;
 #endif
 }
 
@@ -169,35 +174,35 @@ MCC_RECEIVE_BUFFER * mcc_dequeue_buffer(MCC_RECEIVE_LIST *list)
  */
 void mcc_queue_buffer(MCC_RECEIVE_LIST *list, MCC_RECEIVE_BUFFER * r_buffer)
 {
-	MCC_DCACHE_INVALIDATE_MLINES((void*)list, sizeof(MCC_RECEIVE_LIST));
+    MCC_DCACHE_INVALIDATE_MLINES((void*)list, sizeof(MCC_RECEIVE_LIST));
 
 #if (MCC_OS_USED == MCC_LINUX)
-	MCC_RECEIVE_BUFFER * last_buf = (MCC_RECEIVE_BUFFER *)MQX_TO_VIRT(list->tail);
-	MCC_RECEIVE_BUFFER * r_buffer_mqx = (MCC_RECEIVE_BUFFER *)VIRT_TO_MQX(r_buffer);
-	if(last_buf) {
-		last_buf->next = r_buffer_mqx;
-		MCC_DCACHE_FLUSH_MLINES((void*)&last_buf->next, sizeof(MCC_RECEIVE_BUFFER*));
-	}
-	else {
-		list->head = r_buffer_mqx;
-	}
-	r_buffer->next = null;
-	list->tail = r_buffer_mqx;
-	MCC_DCACHE_FLUSH_MLINES(list, sizeof(MCC_RECEIVE_LIST));
-	MCC_DCACHE_FLUSH_MLINES((void*)&r_buffer->next, sizeof(MCC_RECEIVE_BUFFER*));
+    MCC_RECEIVE_BUFFER * last_buf = (MCC_RECEIVE_BUFFER *)MQX_TO_VIRT(list->tail);
+    MCC_RECEIVE_BUFFER * r_buffer_mqx = (MCC_RECEIVE_BUFFER *)VIRT_TO_MQX(r_buffer);
+    if(last_buf) {
+        last_buf->next = r_buffer_mqx;
+        MCC_DCACHE_FLUSH_MLINES((void*)&last_buf->next, sizeof(MCC_RECEIVE_BUFFER*));
+    }
+    else {
+        list->head = r_buffer_mqx;
+    }
+    r_buffer->next = null;
+    list->tail = r_buffer_mqx;
+    MCC_DCACHE_FLUSH_MLINES(list, sizeof(MCC_RECEIVE_LIST));
+    MCC_DCACHE_FLUSH_MLINES((void*)&r_buffer->next, sizeof(MCC_RECEIVE_BUFFER*));
 #elif (MCC_OS_USED == MCC_MQX)
-	MCC_RECEIVE_BUFFER * last_buf = list->tail;
-	if(last_buf) {
-		last_buf->next = r_buffer;
-		MCC_DCACHE_FLUSH_MLINES((void*)&last_buf->next, sizeof(MCC_RECEIVE_BUFFER*));
-	}
-	else {
-		list->head = r_buffer;
-	}
-	r_buffer->next = null;
-	list->tail = r_buffer;
-	MCC_DCACHE_FLUSH_MLINES(list, sizeof(MCC_RECEIVE_LIST));
-	MCC_DCACHE_FLUSH_MLINES((void*)&r_buffer->next, sizeof(MCC_RECEIVE_BUFFER*));
+    MCC_RECEIVE_BUFFER * last_buf = list->tail;
+    if(last_buf) {
+        last_buf->next = r_buffer;
+        MCC_DCACHE_FLUSH_MLINES((void*)&last_buf->next, sizeof(MCC_RECEIVE_BUFFER*));
+    }
+    else {
+        list->head = r_buffer;
+    }
+    r_buffer->next = null;
+    list->tail = r_buffer;
+    MCC_DCACHE_FLUSH_MLINES(list, sizeof(MCC_RECEIVE_LIST));
+    MCC_DCACHE_FLUSH_MLINES((void*)&r_buffer->next, sizeof(MCC_RECEIVE_BUFFER*));
 #endif
 }
 
@@ -213,18 +218,23 @@ void mcc_queue_buffer(MCC_RECEIVE_LIST *list, MCC_RECEIVE_BUFFER * r_buffer)
  */
 MCC_RECEIVE_LIST * mcc_get_endpoint_list(MCC_ENDPOINT endpoint)
 {
-	int i=0;
-	MCC_DCACHE_INVALIDATE_MLINES(&bookeeping_data->endpoint_table[0], MCC_ATTR_MAX_RECEIVE_ENDPOINTS * sizeof(MCC_ENDPOINT_MAP_ITEM));
-	for(i = 0; i<MCC_ATTR_MAX_RECEIVE_ENDPOINTS; i++) {
+    int i=0;
 
-		if(MCC_ENDPOINTS_EQUAL(bookeeping_data->endpoint_table[i].endpoint, endpoint))
+    /* must be valid */
+    if(endpoint.port == MCC_RESERVED_PORT_NUMBER)
+        return null;
+
+    MCC_DCACHE_INVALIDATE_MLINES(&bookeeping_data->endpoint_table[0], MCC_ATTR_MAX_RECEIVE_ENDPOINTS * sizeof(MCC_ENDPOINT_MAP_ITEM));
+    for(i = 0; i<MCC_ATTR_MAX_RECEIVE_ENDPOINTS; i++) {
+
+        if(MCC_ENDPOINTS_EQUAL(bookeeping_data->endpoint_table[i].endpoint, endpoint))
 #if (MCC_OS_USED == MCC_LINUX)
-			return (MCC_RECEIVE_LIST *)MQX_TO_VIRT(&bookeeping_data->endpoint_table[i].list);
+            return (MCC_RECEIVE_LIST *)MQX_TO_VIRT(&bookeeping_data->endpoint_table[i].list);
 #elif (MCC_OS_USED == MCC_MQX)
-			return (MCC_RECEIVE_LIST *)&bookeeping_data->endpoint_table[i].list;
+            return (MCC_RECEIVE_LIST *)&bookeeping_data->endpoint_table[i].list;
 #endif
-	}
-	return null;
+    }
+    return null;
 }
 
 /*!
@@ -247,25 +257,25 @@ MCC_RECEIVE_LIST * mcc_get_endpoint_list(MCC_ENDPOINT endpoint)
  */
 int mcc_queue_signal(MCC_CORE core, MCC_SIGNAL signal)
 {
-	MCC_DCACHE_INVALIDATE_MLINES((void*)&bookeeping_data->signal_queue_head[core], sizeof(unsigned int));
-	MCC_DCACHE_INVALIDATE_MLINES((void*)&bookeeping_data->signal_queue_tail[core], sizeof(unsigned int));
-	int tail = bookeeping_data->signal_queue_tail[core];
-	int new_tail = tail == (MCC_MAX_OUTSTANDING_SIGNALS-1) ? 0 : tail+1;
+    MCC_DCACHE_INVALIDATE_MLINES((void*)&bookeeping_data->signal_queue_head[core], sizeof(unsigned int));
+    MCC_DCACHE_INVALIDATE_MLINES((void*)&bookeeping_data->signal_queue_tail[core], sizeof(unsigned int));
+    int tail = bookeeping_data->signal_queue_tail[core];
+    int new_tail = tail == (MCC_MAX_OUTSTANDING_SIGNALS-1) ? 0 : tail+1;
 
-	if(MCC_SIGNAL_QUEUE_FULL(core))
-		return MCC_ERR_SQ_FULL;
+    if(MCC_SIGNAL_QUEUE_FULL(core))
+        return MCC_ERR_SQ_FULL;
 
-	MCC_DCACHE_INVALIDATE_MLINES((void*)&bookeeping_data->signals_received[core][tail], sizeof(MCC_SIGNAL));
-	bookeeping_data->signals_received[core][tail].type = signal.type;
-	bookeeping_data->signals_received[core][tail].destination.core = signal.destination.core;
-	bookeeping_data->signals_received[core][tail].destination.node = signal.destination.node;
-	bookeeping_data->signals_received[core][tail].destination.port = signal.destination.port;
+    MCC_DCACHE_INVALIDATE_MLINES((void*)&bookeeping_data->signals_received[core][tail], sizeof(MCC_SIGNAL));
+    bookeeping_data->signals_received[core][tail].type = signal.type;
+    bookeeping_data->signals_received[core][tail].destination.core = signal.destination.core;
+    bookeeping_data->signals_received[core][tail].destination.node = signal.destination.node;
+    bookeeping_data->signals_received[core][tail].destination.port = signal.destination.port;
 
-	bookeeping_data->signal_queue_tail[core] = new_tail;
-	MCC_DCACHE_FLUSH_MLINES((void*)&bookeeping_data->signal_queue_tail[core], sizeof(unsigned int));
-	MCC_DCACHE_FLUSH_MLINES((void*)&bookeeping_data->signals_received[core][tail], sizeof(MCC_SIGNAL));
+    bookeeping_data->signal_queue_tail[core] = new_tail;
+    MCC_DCACHE_FLUSH_MLINES((void*)&bookeeping_data->signal_queue_tail[core], sizeof(unsigned int));
+    MCC_DCACHE_FLUSH_MLINES((void*)&bookeeping_data->signals_received[core][tail], sizeof(MCC_SIGNAL));
 
-	return MCC_SUCCESS;
+    return MCC_SUCCESS;
 }
 
 /*!
@@ -281,24 +291,22 @@ int mcc_queue_signal(MCC_CORE core, MCC_SIGNAL signal)
  */
 int mcc_dequeue_signal(MCC_CORE core, MCC_SIGNAL *signal)
 {
-	MCC_DCACHE_INVALIDATE_MLINES((void*)&bookeeping_data->signal_queue_head[core], sizeof(unsigned int));
-	MCC_DCACHE_INVALIDATE_MLINES((void*)&bookeeping_data->signal_queue_tail[core], sizeof(unsigned int));
-	int head = bookeeping_data->signal_queue_head[core];
+    MCC_DCACHE_INVALIDATE_MLINES((void*)&bookeeping_data->signal_queue_head[core], sizeof(unsigned int));
+    MCC_DCACHE_INVALIDATE_MLINES((void*)&bookeeping_data->signal_queue_tail[core], sizeof(unsigned int));
+    int head = bookeeping_data->signal_queue_head[core];
 
-	if(MCC_SIGNAL_QUEUE_EMPTY(core))
-		return MCC_ERR_SQ_EMPTY;
+    if(MCC_SIGNAL_QUEUE_EMPTY(core))
+        return MCC_ERR_SQ_EMPTY;
 
-	MCC_DCACHE_INVALIDATE_MLINES((void*)&bookeeping_data->signals_received[core][head], sizeof(MCC_SIGNAL));
-	signal->type = bookeeping_data->signals_received[core][head].type;
-	signal->destination.core = bookeeping_data->signals_received[core][head].destination.core;
-	signal->destination.node = bookeeping_data->signals_received[core][head].destination.node;
-	signal->destination.port = bookeeping_data->signals_received[core][head].destination.port;
+    MCC_DCACHE_INVALIDATE_MLINES((void*)&bookeeping_data->signals_received[core][head], sizeof(MCC_SIGNAL));
+    signal->type = bookeeping_data->signals_received[core][head].type;
+    signal->destination.core = bookeeping_data->signals_received[core][head].destination.core;
+    signal->destination.node = bookeeping_data->signals_received[core][head].destination.node;
+    signal->destination.port = bookeeping_data->signals_received[core][head].destination.port;
 
-	bookeeping_data->signal_queue_head[core] = head == (MCC_MAX_OUTSTANDING_SIGNALS-1) ? 0 : head+1;
-	MCC_DCACHE_FLUSH_MLINES((void*)&bookeeping_data->signal_queue_head[core], sizeof(unsigned int));
+    bookeeping_data->signal_queue_head[core] = head == (MCC_MAX_OUTSTANDING_SIGNALS-1) ? 0 : head+1;
+    MCC_DCACHE_FLUSH_MLINES((void*)&bookeeping_data->signal_queue_head[core], sizeof(unsigned int));
 
-	return MCC_SUCCESS;
+    return MCC_SUCCESS;
 }
-
-
 

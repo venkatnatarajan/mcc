@@ -54,15 +54,15 @@ __packed
  * \see MCC_BOOKEEPING_STRUCT
  */
 struct mcc_endpoint {
-	/*! \brief Core number - identifies the core within the processor */
-	MCC_CORE core;
+    /*! \brief Core number - identifies the core within the processor */
+    MCC_CORE core;
 
-	/*! \brief Node number - in Linux any user process participating in MCC is a unique node; 
-  MQX has only one node */
-	MCC_NODE node;
+    /*! \brief Node number - in Linux any user process participating in MCC is a unique node;
+    MQX has only one node */
+    MCC_NODE node;
 
-	/*! \brief Port number - both Linux and MQX can have an arbitrary number of ports per node */
-  MCC_PORT port;
+    /*! \brief Port number - both Linux and MQX can have an arbitrary number of ports per node */
+    MCC_PORT port;
 #if defined(__IAR_SYSTEMS_ICC__)
 };
 #else
@@ -81,14 +81,14 @@ __packed
  * \see MCC_BOOKEEPING_STRUCT
  */
 struct mcc_receive_buffer {
-	/*! \brief Pointer to the next receive buffer */
-	struct mcc_receive_buffer *next;
+    /*! \brief Pointer to the next receive buffer */
+    struct mcc_receive_buffer *next;
 
-	/*! \brief Length of data stored in this buffer */
-	MCC_MEM_SIZE data_len;
+    /*! \brief Length of data stored in this buffer */
+    MCC_MEM_SIZE data_len;
 
-	/*! \brief Space for data storage */
-	char data [MCC_ATTR_BUFFER_SIZE_IN_BYTES];
+    /*! \brief Space for data storage */
+    char data [MCC_ATTR_BUFFER_SIZE_IN_BYTES];
 #if defined(__IAR_SYSTEMS_ICC__)
 };
 #else
@@ -109,11 +109,11 @@ __packed
  * \see MCC_BOOKEEPING_STRUCT
  */
 struct mcc_receive_list {
-	/*! \brief Head of a buffers list */
-	MCC_RECEIVE_BUFFER * head;
+    /*! \brief Head of a buffers list */
+    MCC_RECEIVE_BUFFER * head;
 
-	/*! \brief Tail of a buffers list */
-	MCC_RECEIVE_BUFFER * tail;
+    /*! \brief Tail of a buffers list */
+    MCC_RECEIVE_BUFFER * tail;
 #if defined(__IAR_SYSTEMS_ICC__)
 };
 #else
@@ -137,11 +137,11 @@ __packed
  * \see MCC_BOOKEEPING_STRUCT
  */
 struct mcc_signal {
-	/*! \brief Signal type - BUFFER_QUEUED or BUFFER_FREED */
-	MCC_SIGNAL_TYPE type;
+    /*! \brief Signal type - BUFFER_QUEUED or BUFFER_FREED */
+    MCC_SIGNAL_TYPE type;
 
-	/*! \brief Destination endpoint */
-	MCC_ENDPOINT    destination;
+    /*! \brief Destination endpoint */
+    MCC_ENDPOINT    destination;
 #if defined(__IAR_SYSTEMS_ICC__)
 };
 #else
@@ -162,11 +162,11 @@ __packed
  * \see MCC_BOOKEEPING_STRUCT
  */
 struct mcc_endpoint_map_item {
-	/*! \brief Endpoint tripplet */
-	MCC_ENDPOINT      endpoint;
+    /*! \brief Endpoint tripplet */
+    MCC_ENDPOINT      endpoint;
 
-	/*! \brief List of received buffers */
-	MCC_RECEIVE_LIST  list;
+    /*! \brief List of received buffers */
+    MCC_RECEIVE_LIST  list;
 #if defined(__IAR_SYSTEMS_ICC__)
 };
 #else
@@ -185,8 +185,8 @@ __packed
  * \see MCC_BOOKEEPING_STRUCT
  */
 struct mcc_info_struct {
-	/*! \brief <major>.<minor> - minor is changed whenever patched, major indicates compatibility */
-	char version_string[sizeof(MCC_VERSION_STRING)];
+    /*! \brief <major>.<minor> - minor is changed whenever patched, major indicates compatibility */
+    char version_string[sizeof(MCC_VERSION_STRING)];
 #if defined(__IAR_SYSTEMS_ICC__)
 };
 #else
@@ -212,29 +212,29 @@ __packed
  * \see MCC_RECEIVE_BUFFER
  */
 struct mcc_bookeeping_struct {
-	/*! \brief String that indicates if this structure has been already initialized */
-	char init_string[sizeof(MCC_INIT_STRING)];
+    /*! \brief String that indicates if this structure has been already initialized */
+    char init_string[sizeof(MCC_INIT_STRING)];
 
-	/*! \brief String that indicates the MCC library version */
-	char version_string[sizeof(MCC_VERSION_STRING)];
+    /*! \brief String that indicates the MCC library version */
+    char version_string[sizeof(MCC_VERSION_STRING)];
 
-	/*! \brief List of free buffers */
-	MCC_RECEIVE_LIST free_list;
+    /*! \brief List of free buffers */
+    MCC_RECEIVE_LIST free_list;
 
-	/*! \brief Each core has it's own queue of received signals */
-	MCC_SIGNAL signals_received[MCC_NUM_CORES][MCC_MAX_OUTSTANDING_SIGNALS];
+    /*! \brief Each core has it's own queue of received signals */
+    MCC_SIGNAL signals_received[MCC_NUM_CORES][MCC_MAX_OUTSTANDING_SIGNALS];
 
-	/*! \brief Signal queue head for each core */
-	unsigned int signal_queue_head[MCC_NUM_CORES];
+    /*! \brief Signal queue head for each core */
+    unsigned int signal_queue_head[MCC_NUM_CORES];
 
-	/*! \brief Signal queue tail for each core */
-	unsigned int signal_queue_tail[MCC_NUM_CORES];
+    /*! \brief Signal queue tail for each core */
+    unsigned int signal_queue_tail[MCC_NUM_CORES];
 
-	/*! \brief Endpoint map */
-	MCC_ENDPOINT_MAP_ITEM endpoint_table[MCC_ATTR_MAX_RECEIVE_ENDPOINTS];
+    /*! \brief Endpoint map */
+    MCC_ENDPOINT_MAP_ITEM endpoint_table[MCC_ATTR_MAX_RECEIVE_ENDPOINTS];
 
-	/*! \brief Receive buffers, the number is defined in mcc_config.h (MCC_ATTR_NUM_RECEIVE_BUFFERS) */
-	MCC_RECEIVE_BUFFER r_buffers[MCC_ATTR_NUM_RECEIVE_BUFFERS];
+    /*! \brief Receive buffers, the number is defined in mcc_config.h (MCC_ATTR_NUM_RECEIVE_BUFFERS) */
+    MCC_RECEIVE_BUFFER r_buffers[MCC_ATTR_NUM_RECEIVE_BUFFERS];
 #if defined(__IAR_SYSTEMS_ICC__)
 };
 #else
