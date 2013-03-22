@@ -185,7 +185,7 @@ void responder_task(uint_32 dummy)
                     }
                     if(MCC_SUCCESS == ret_value) {
                         mcc_memcpy((void*)uut_temp_buffer_ptr, (void*)uut_app_buffer_ptr[data_recv_param->uut_endpoint.port], (unsigned int)num_of_received_bytes);
-                        mcc_free_buffer(&data_recv_param->uut_endpoint, uut_temp_buffer_ptr);
+                        mcc_free_buffer(uut_temp_buffer_ptr);
                     }
                 }
                 if(ACK_REQUIRED_YES == msg.ACK_REQUIRED) {

@@ -39,7 +39,7 @@ int mcc_send(MCC_ENDPOINT*, void*, MCC_MEM_SIZE, unsigned int);
 int mcc_recv_copy(MCC_ENDPOINT*, void*, MCC_MEM_SIZE, MCC_MEM_SIZE*, unsigned int);
 int mcc_recv_nocopy(MCC_ENDPOINT*, void**, MCC_MEM_SIZE*, unsigned int);
 int mcc_msgs_available(MCC_ENDPOINT*, unsigned int*);
-int mcc_free_buffer(MCC_ENDPOINT*, void*);
+int mcc_free_buffer(void*);
 int mcc_get_info(MCC_NODE, MCC_INFO_STRUCT*);
 
 #endif /* __MCC_API__ */

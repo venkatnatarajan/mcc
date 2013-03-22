@@ -268,7 +268,7 @@ int mcc_destroy_endpoint(MCC_ENDPOINT *endpoint)
  * \return MCC_SUCCESS
  * \return MCC_ERR_ENDPOINT (the endpoint does not exist)
  * \return MCC_ERR_SEMAPHORE (semaphore handling error)
- * \return MCC_ERR_INVAL (an invalid address has been supplied for msg or the msg_size exceeds the size of a data buffer)
+ * \return MCC_ERR_INVAL (the msg_size exceeds the size of a data buffer)
  * \return MCC_ERR_TIMEOUT (timeout exceeded before a buffer became available)
  * \return MCC_ERR_NOMEM (no free buffer available and timeout_us set to 0)
  * \return MCC_ERR_SQ_FULL (signal queue is full)
@@ -417,7 +417,7 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
  * \return MCC_SUCCESS
  * \return MCC_ERR_ENDPOINT (the endpoint does not exist)
  * \return MCC_ERR_SEMAPHORE (semaphore handling error)
- * \return MCC_ERR_TIMEOUT (timeout exceeded before a buffer became available)
+ * \return MCC_ERR_TIMEOUT (timeout exceeded before a new message came)
  *
  * \see mcc_send
  * \see mcc_recv_nocopy
@@ -540,7 +540,7 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
  * \return MCC_SUCCESS
  * \return MCC_ERR_ENDPOINT (the endpoint does not exist)
  * \return MCC_ERR_SEMAPHORE (semaphore handling error)
- * \return MCC_ERR_TIMEOUT (timeout exceeded before a buffer became available)
+ * \return MCC_ERR_TIMEOUT (timeout exceeded before a new message came)
  *
  * \see mcc_send
  * \see mcc_recv_copy
@@ -611,6 +611,19 @@ int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_
     MCC_DCACHE_INVALIDATE_MLINES((void*)&list->head->data_len, sizeof(MCC_MEM_SIZE));
     *recv_size = (MCC_MEM_SIZE)(list->head->data_len);
 
+    /* Semaphore-protected section start */
+    return_value = mcc_get_semaphore();
+    if(return_value != MCC_SUCCESS)
+        return return_value;
+
+    /* Dequeue the buffer from the endpoint list */
+    mcc_dequeue_buffer(list);
+
+    /* Semaphore-protected section end */
+    return_value = mcc_release_semaphore();
+    if(return_value != MCC_SUCCESS)
+        return return_value;
+
     return return_value;
 }
 
@@ -674,20 +687,15 @@ int mcc_msgs_available(MCC_ENDPOINT *endpoint, unsigned int *num_msgs)
  * has to be called to free a buffer and to make it available for the next data
  * transfer.
  *
- * \param[in] endpoint Pointer to the endpoint the buffer is kept by.
  * \param[in] buffer Pointer to the buffer to be freed.
  *
  * \return MCC_SUCCESS
- * \return MCC_ERR_ENDPOINT (the endpoint does not exist)
  * \return MCC_ERR_SEMAPHORE (semaphore handling error)
  *
  * \see mcc_recv_nocopy
- * \see MCC_ENDPOINT
  */
-int mcc_free_buffer(MCC_ENDPOINT *endpoint, void *buffer)
+int mcc_free_buffer(void *buffer)
 {
-    MCC_RECEIVE_LIST *list;
-    MCC_RECEIVE_BUFFER *buf, *buf_tmp;
     MCC_SIGNAL affiliated_signal;
     MCC_ENDPOINT tmp_destination = {(MCC_CORE)0, (MCC_NODE)0, (MCC_PORT)0};
     int return_value, i = 0;
@@ -697,30 +705,9 @@ int mcc_free_buffer(MCC_ENDPOINT *endpoint, void *buffer)
     if(return_value != MCC_SUCCESS)
         return return_value;
 
-    /* Get list of buffers kept by the particular endpoint */
-    list = mcc_get_endpoint_list(*endpoint);
-    if(list == null) {
-        /* The endpoint does not exists (has not been registered so far), return immediately - error */
-        mcc_release_semaphore();
-        return MCC_ERR_ENDPOINT;
-    }
-
-    /* Dequeue the buffer from the endpoint list */
-    if(list->head->data == (char*)buffer) {
-        buf = mcc_dequeue_buffer(list);
-    }
-    else {
-        buf_tmp = (MCC_RECEIVE_BUFFER*)list->head;
-        while(buf_tmp->next->data != (char*)buffer) {
-            buf_tmp = (MCC_RECEIVE_BUFFER*)buf_tmp->next;
-        }
-        buf = (MCC_RECEIVE_BUFFER*)buf_tmp->next;
-        buf_tmp->next = buf_tmp->next->next;
-    }
-
     /* Enqueue the buffer into the free list */
     MCC_DCACHE_INVALIDATE_MLINES((void*)&bookeeping_data->free_list, sizeof(MCC_RECEIVE_LIST*));
-    mcc_queue_buffer(&bookeeping_data->free_list, buf);
+    mcc_queue_buffer(&bookeeping_data->free_list, (MCC_RECEIVE_BUFFER *)((unsigned int)buffer - (unsigned int)(&(((MCC_RECEIVE_BUFFER*)0)->data))));
 
     /* Notify all cores (except of itself) via CPU-to-CPU interrupt that a buffer has been freed */
     affiliated_signal.type = BUFFER_FREED;
