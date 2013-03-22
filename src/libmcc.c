@@ -439,14 +439,13 @@ int mcc_msgs_available(MCC_ENDPOINT *endpoint, unsigned int *num_msgs)
  * has to be called to free a buffer and to make it available for the next data
  * transfer.
  *
- * \param[in] endpoint Pointer to the endpoint the buffer was received from.
  * \param[in] buffer Pointer to the buffer to be freed.
  *
  * \return MCC_SUCCESS
  * \return MCC_ERR_ENDPOINT (the endpoint does not exist)
  * \return MCC_ERR_SEMAPHORE (semaphore handling error)
  */
-int mcc_free_buffer(MCC_ENDPOINT *endpoint, void *buffer)
+int mcc_free_buffer(void *buffer)
 {
 	unsigned int offset = (unsigned int)buffer - (bookeeping_p + offsetof(MCC_RECEIVE_BUFFER, data));
 	if(ioctl(fd, MCC_FREE_RECEIVE_BUFFER, &offset) < 0)
