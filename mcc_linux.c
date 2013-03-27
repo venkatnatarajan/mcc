@@ -385,16 +385,6 @@ static ssize_t mcc_write(struct file *f, const char __user *buf, size_t len, lof
 	if(len > sizeof(buffer->data))
 		return -EINVAL;
 
-	// get the target endpoint
-	if(mcc_sema4_grab(MCC_SHMEM_SEMAPHORE_NUMBER))
-		return -EBUSY;
-	if(!(send_list = mcc_get_endpoint_list(priv_p->send_endpoint)))
-	{
-		mcc_sema4_release(MCC_SHMEM_SEMAPHORE_NUMBER);
-		return -EINVAL;
-	}
-	mcc_sema4_release(MCC_SHMEM_SEMAPHORE_NUMBER);
-
 	// block unless asked not to
 	if(!(f->f_flags & O_NONBLOCK))
 	{
@@ -431,6 +421,13 @@ static ssize_t mcc_write(struct file *f, const char __user *buf, size_t len, lof
 
 	if(mcc_sema4_grab(MCC_SHMEM_SEMAPHORE_NUMBER))
 		return -EBUSY;
+        // get the target endpoint
+        if(!(send_list = mcc_get_endpoint_list(priv_p->send_endpoint)))
+        {
+                mcc_sema4_release(MCC_SHMEM_SEMAPHORE_NUMBER);
+                return -EINVAL;
+        }
+
 	// queue it
 	mcc_queue_buffer(send_list, buffer);
 
