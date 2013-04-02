@@ -45,13 +45,13 @@ const char * const version_string = MCC_VERSION_STRING;
 /*!
  * \brief This function initializes the Multi Core Communication subsystem for a given node.
  *
- * This should only be called once per node (once in MQX, once per process in Linux).
+ * This function should only be called once per node (once in MQX, once per process in Linux).
  *
  * \param[in] node Node number that will be used in endpoints created by this process.
  *
  * \return MCC_SUCCESS
  * \return MCC_ERR_SEMAPHORE (semaphore handling error)
- * \return MCC_ERR_INT (Interrupt registration error)
+ * \return MCC_ERR_INT (interrupt registration error)
  *
  * \see mcc_destroy
  * \see MCC_BOOKEEPING_STRUCT
@@ -125,7 +125,7 @@ int mcc_initialize(MCC_NODE node)
 /*!
  * \brief This function de-initializes the Multi Core Communication subsystem for a given node.
  *
- * Frees all resources of the node. Deletes all endpoints and frees any buffers that may have been queued there.
+ * The function frees all resources of the node. Deletes all endpoints and frees any buffers that may have been queued there.
  *
  * \param[in] node Node number to be deinitialized.
  *
@@ -173,9 +173,9 @@ int mcc_destroy(MCC_NODE node)
 /*!
  * \brief This function creates an endpoint.
  *
- * Create an endpoint on the local node with the specified port number.
- * The core and node provided in endpoint must match the caller's core and
- * node and the port argument must match the endpoint port.
+ * The function creates an endpoint on the local node with the specified port number.
+ * The core and node provided in the endpoint must match the caller's core and
+ * node, and the port argument must match the endpoint port.
  *
  * \param[out] endpoint Pointer to the endpoint triplet to be created.
  * \param[in] port Port number.
@@ -220,7 +220,7 @@ int mcc_create_endpoint(MCC_ENDPOINT *endpoint, MCC_PORT port)
 /*!
  * \brief This function destroys an endpoint.
  *
- * Destroy an endpoint on the local node and frees any buffers that may be queued.
+ * The function destroys an endpoint on the local node and frees any buffers that may be queued.
  *
  * \param[in] endpoint Pointer to the endpoint triplet to be deleted.
  *
@@ -263,7 +263,7 @@ int mcc_destroy_endpoint(MCC_ENDPOINT *endpoint)
  * \param[in] endpoint Pointer to the receiving endpoint to send to.
  * \param[in] msg Pointer to the message to be sent.
  * \param[in] msg_size Size of the message to be sent in bytes.
- * \param[in] timeout_us Timeout, in microseconds, to wait for a free buffer. A value of 0 means don't wait (non-blocking call), 0xffffffff means wait forever (blocking call).
+ * \param[in] timeout_us Timeout, in microseconds, to wait for a free buffer. A value of 0 means don't wait (non-blocking call). A value of 0xffffffff means wait forever (blocking call).
  *
  * \return MCC_SUCCESS
  * \return MCC_ERR_ENDPOINT (the endpoint does not exist)
@@ -405,14 +405,14 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
  *        The data will be copied from the receive buffer into the user supplied buffer.
  *
  * This is the "receive with copy" version of the MCC receive function. This version is simple
- * to use but includes the cost of copying the data from shared memory into the user space buffer.
- * The user has no obligation or burden to manage shared memory buffers.
+ * to use but it requires copying data from shared memory into the user space buffer.
+ * The user has no obligation or burden to manage the shared memory buffers.
  *
  * \param[in] endpoint Pointer to the receiving endpoint to receive from.
- * \param[in] buffer Pointer to the user-app. buffer data will be copied into.
+ * \param[in] buffer Pointer to the user-app. buffer where data will be copied into.
  * \param[in] buffer_size The maximum number of bytes to copy.
  * \param[out] recv_size Pointer to an MCC_MEM_SIZE that will contain the number of bytes actually copied into the buffer.
- * \param[in] timeout_us Timeout, in microseconds, to wait for a free buffer. A value of 0 means don't wait (non-blocking call), 0xffffffff means wait forever (blocking call).
+ * \param[in] timeout_us Timeout, in microseconds, to wait for a free buffer. A value of 0 means don't wait (non-blocking call). A value of 0xffffffff means wait forever (blocking call).
  *
  * \return MCC_SUCCESS
  * \return MCC_ERR_ENDPOINT (the endpoint does not exist)
@@ -527,15 +527,15 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
 /*!
  * \brief This function receives a message from the specified endpoint if one is available. The data is NOT copied into the user-app. buffer.
  *
- * This is the "zero-copy receive" version of the MCC receive function. No data is copied, just
- * the pointer to the data is returned. This version is fast, but requires the user to manage
- * buffer allocation. Specifically the user must decide when a buffer is no longer in use and
+ * This is the "zero-copy receive" version of the MCC receive function. No data is copied. 
+ * Only the pointer to the data is returned. This version is fast, but it requires the user to manage
+ * buffer allocation. Specifically, the user must decide when a buffer is no longer in use and
  * make the appropriate API call to free it.
  *
  * \param[in] endpoint Pointer to the receiving endpoint to receive from.
  * \param[out] buffer_p Pointer to the MCC buffer of the shared memory where the received data is stored.
  * \param[out] recv_size Pointer to an MCC_MEM_SIZE that will contain the number of valid bytes in the buffer.
- * \param[in] timeout_us Timeout, in microseconds, to wait for a free buffer. A value of 0 means don't wait (non-blocking call), 0xffffffff means wait forever (blocking call).
+ * \param[in] timeout_us Timeout, in microseconds, to wait for a free buffer. A value of 0 means don't wait (non-blocking call). A value of 0xffffffff means wait forever (blocking call).
  *
  * \return MCC_SUCCESS
  * \return MCC_ERR_ENDPOINT (the endpoint does not exist)
@@ -628,13 +628,13 @@ int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_
 }
 
 /*!
- * \brief This function returns number of buffers currently queued at the endpoint.
+ * \brief This function returns the number of buffers currently queued at the endpoint.
  *
- * Checks if messages are available on a receive endpoint. The call only checks the
- * availability of messages and does not dequeue them.
+ * The function checks if messages are available on a receive endpoint. While the call only checks the
+ * availability of messages, it does not dequeue them.
  *
  * \param[in] endpoint Pointer to the endpoint structure.
- * \param[out] num_msgs Pointer to an int that will contain the number of buffers queued.
+ * \param[out] num_msgs Pointer to an unsigned int that will contain the number of buffers queued.
  *
  * \return MCC_SUCCESS
  * \return MCC_ERR_ENDPOINT (the endpoint does not exist)
@@ -683,7 +683,7 @@ int mcc_msgs_available(MCC_ENDPOINT *endpoint, unsigned int *num_msgs)
 /*!
  * \brief This function frees a buffer previously returned by mcc_recv_nocopy().
  *
- * Once the zero-copy mechanism of receiving data is used this function
+ * Once the zero-copy mechanism of receiving data is used, this function
  * has to be called to free a buffer and to make it available for the next data
  * transfer.
  *
@@ -730,7 +730,7 @@ int mcc_free_buffer(void *buffer)
 /*!
  * \brief This function returns information about the MCC sub system.
  *
- * Returns implementation specific information.
+ * The function returns implementation-specific information.
  *
  * \param[in] node Node number.
  * \param[out] info_data Pointer to the MCC_INFO_STRUCT structure to hold returned data.

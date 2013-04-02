@@ -103,7 +103,7 @@ __packed
  * \brief List of buffers.
  *
  * Each endpoint keeps the list of received buffers.
- * The list of free buffers is kept in book keeping data structure. 
+ * The list of free buffers is kept in bookkeeping data structure. 
  *
  * \see MCC_RECEIVE_BUFFER
  * \see MCC_BOOKEEPING_STRUCT
@@ -200,11 +200,11 @@ __packed
 /*!
  * \brief Share Memory data - Bookkeeping data and buffers.
  *
- * This is used for "bookkeeping data" (e.g., endpoint and signal queue head 
- * and tail pointers) and fixed size data buffers. The whole mcc_bookeeping_struct
+ * This is used for "bookkeeping data" such as endpoint and signal queue head 
+ * and tail pointers and fixed size data buffers. The whole mcc_bookeeping_struct
  * as well as each individual structure members has to be defined and stored in the
- * memory as packed structure. This way same structure member offsets will be ensured
- * on all cores/OSes/compilers. Compiler-specific pragmas for data packing has to be applied.
+ * memory as packed structure. This way, the same structure member offsets will be ensured
+ * on all cores/OSes/compilers. Compiler-specific pragmas for data packing have to be applied.
  *
  * \see MCC_RECEIVE_LIST
  * \see MCC_SIGNAL
