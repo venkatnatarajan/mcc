@@ -35,6 +35,7 @@
 #include "test.h"
 #include <string.h>
 #include <sys/time.h>
+#include <stdlib.h>
 
 //#if ! BSPCFG_ENABLE_IO_SUBSYSTEM
 //#error This application requires BSPCFG_ENABLE_IO_SUBSYSTEM defined non-zero in user_config.h. Please recompile BSP with this option.
@@ -87,7 +88,7 @@ void responder_task(uint_32 dummy)
     void*           uut_temp_buffer_ptr;
     TIME_STRUCT     uut_time;
     pointer         tmp_pointer=null;
-    uint_32       err_code;
+//    uint_32       err_code;
 
 //#if PRINT_ON
     /* create core mutex used in the app. for accessing the serial console */
@@ -135,19 +136,20 @@ void responder_task(uint_32 dummy)
             case CTR_CMD_CREATE_EP:
                 data_create_ep_param = (CONTROL_MESSAGE_DATA_CREATE_EP_PARAM_PTR)&msg.DATA;
                 ret_value = mcc_create_endpoint(&data_create_ep_param->uut_endpoint, data_create_ep_param->uut_endpoint.port);
+		printf("return value of CREATE EP = %d\n", ret_value);
                 if(MCC_SUCCESS == ret_value) {
-                    //tmp_pointer = _mem_alloc(data_create_ep_param->uut_app_buffer_size);
-                    //if(tmp_pointer != null) {
-                    //    uut_app_buffer_ptr[data_create_ep_param->uut_endpoint.port] = tmp_pointer;
-                    //    mcc_memcpy("MEM_OK", (void*)ack_msg.RESP_DATA, 7);
-                    //}
-                    //else {
-                    //    _mem_free(tmp_pointer);
-                    //    mcc_memcpy("MEM_KO", (void*)ack_msg.RESP_DATA, 7);
-  //  #if PRINT_ON
-                    //    printf("_mem_alloc failure\n");
+                    tmp_pointer = malloc(data_create_ep_param->uut_app_buffer_size);
+                    if(tmp_pointer != NULL) {
+                        uut_app_buffer_ptr[data_create_ep_param->uut_endpoint.port] = tmp_pointer;
+                        memcpy((void*)ack_msg.RESP_DATA, "MEM_OK", 7);
+                    }
+                    else {
+                        free(tmp_pointer);
+                        memcpy((void*)ack_msg.RESP_DATA, "MEM_KO", 7);
+ //  #if PRINT_ON
+                        printf("malloc failure\n");
 //    #endif
-                    //}
+                   }
                 }
                 if(ACK_REQUIRED_YES == msg.ACK_REQUIRED) {
                     ack_msg.CMD_ACK = CTR_CMD_CREATE_EP;
@@ -247,16 +249,16 @@ void responder_task(uint_32 dummy)
                 data_destroy_ep_param = (CONTROL_MESSAGE_DATA_DESTROY_EP_PARAM_PTR)&msg.DATA;
                 ret_value = mcc_destroy_endpoint(&data_destroy_ep_param->uut_endpoint);
                 if(MCC_SUCCESS == ret_value) {
-//                    err_code = _mem_free((void*)uut_app_buffer_ptr[data_destroy_ep_param->uut_endpoint.port]);
+                    free((void *)uut_app_buffer_ptr[data_destroy_ep_param->uut_endpoint.port]);
 //                    if(MQX_OK != err_code) {
-#if PRINT_ON
+//#if PRINT_ON
   //                      printf("_mem_free failure\n");
-#endif
-    //                    memcpy((void*)ack_msg.RESP_DATA,"MEM_KO" , 7);
+//#endif
+    //                  memcpy((void*)ack_msg.RESP_DATA,"MEM_KO" , 7);
       //              }
         //            else {
-          //              memcpy((void*)ack_msg.RESP_DATA, "MEM_OK", 7);
-           //         }
+                       memcpy((void*)ack_msg.RESP_DATA, "MEM_OK", 7);
+            //        }
                 }
                 if(ACK_REQUIRED_YES == msg.ACK_REQUIRED) {
                     ack_msg.CMD_ACK = CTR_CMD_DESTROY_EP;
@@ -278,6 +280,7 @@ void responder_task(uint_32 dummy)
     }
 }
 
+void _time_get(TIME_STRUCT * time);
 void _time_get(TIME_STRUCT * time)
 {
 	struct timeval tv;
