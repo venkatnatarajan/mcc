@@ -77,7 +77,7 @@
 #define ACK_REQUIRED_NO        (0)
 
 #define PSP_MQX_CPU_IS_VYBRID_A5 
-#define MCC_TEST_APP 1
+#define MCC_TEST_APP 0
 
 #ifdef PSP_MQX_CPU_IS_VYBRID_A5
 #if (MCC_TEST_APP == 1)
