@@ -35,7 +35,6 @@ static unsigned int bookeeping_p;
 
 static MCC_CORE this_core = MCC_CORE_NUMBER;
 static MCC_NODE this_node;
-static MCC_ENDPOINT endpoints[MCC_ATTR_MAX_RECEIVE_ENDPOINTS];
 static MCC_ENDPOINT send_endpoint, recv_endpoint;
 static unsigned int current_timeout_us = 0xFFFFFFFF; //0
 static MCC_READ_MODE current_read_mode = MCC_READ_MODE_UNDEFINED;
@@ -58,9 +57,6 @@ int mcc_initialize(MCC_NODE node)
 	int i;
 
 	this_node = node;
-
-	for(i=0; i<MCC_ATTR_MAX_RECEIVE_ENDPOINTS; i++)
-		endpoints[i].port = MCC_RESERVED_PORT_NUMBER;
 
 	send_endpoint.port = MCC_RESERVED_PORT_NUMBER;
 	recv_endpoint.port = MCC_RESERVED_PORT_NUMBER;
@@ -97,26 +93,6 @@ int mcc_initialize(MCC_NODE node)
  */
 int mcc_destroy(MCC_NODE node)
 {
-	int i;
-
-	// delete all endpoints associated with this node
-	for(i=0; i<MCC_ATTR_MAX_RECEIVE_ENDPOINTS; i++)
-	{
-		if(MCC_ENDPOINT_IN_USE(endpoints[i]))
-		{
-			if(ioctl(fd, MCC_DESTROY_ENDPOINT, &endpoints[i]) < 0)
-			{
-				if(errno == EFAULT)
-					return MCC_ERR_DEV;
-				if(errno == EBUSY)
-					return MCC_ERR_SEMAPHORE;
-				if(errno == EINVAL)
-					return MCC_ERR_ENDPOINT;
-			}
-		}
-	}
-
-
     close(fd);
 
     return MCC_SUCCESS;
@@ -140,9 +116,6 @@ int mcc_destroy(MCC_NODE node)
  */
 int mcc_create_endpoint(MCC_ENDPOINT *endpoint, MCC_PORT port)
 {
-	int i;
-	int slot = -1;
-
 	endpoint->core = this_core;
 	endpoint->node = this_node;
 	endpoint->port = port;
@@ -156,8 +129,6 @@ int mcc_create_endpoint(MCC_ENDPOINT *endpoint, MCC_PORT port)
 		if(errno == EINVAL)
 			return MCC_ERR_ENDPOINT;
 	}
-
-	endpoints[slot] = *endpoint;
 
     return MCC_SUCCESS;
 }
@@ -176,8 +147,6 @@ int mcc_create_endpoint(MCC_ENDPOINT *endpoint, MCC_PORT port)
 */
 int mcc_destroy_endpoint(MCC_ENDPOINT *endpoint)
 {
-	int i;
-
 	if(endpoint->node != this_node)
 		return MCC_ERR_ENDPOINT;
 
@@ -189,12 +158,6 @@ int mcc_destroy_endpoint(MCC_ENDPOINT *endpoint)
 			return MCC_ERR_SEMAPHORE;
 		if(errno == EINVAL)
 			return MCC_ERR_ENDPOINT;
-	}
-
-	for(i=0; i<MCC_ATTR_MAX_RECEIVE_ENDPOINTS; i++)
-	{
-		if(MCC_ENDPOINTS_EQUAL(endpoints[i], (*endpoint)))
-				endpoints[i].port = MCC_RESERVED_PORT_NUMBER;
 	}
 
     return MCC_SUCCESS;
@@ -271,15 +234,15 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
 
 	switch (errno)
 	{
-	case -EFAULT:
+	case EFAULT:
 		return MCC_ERR_DEV;
-	case -EBUSY:
+	case EBUSY:
 		return MCC_ERR_SEMAPHORE;
-	case -EINVAL:
+	case EINVAL:
 		return MCC_ERR_ENDPOINT;
-	case -ETIME:
+	case ETIME:
 		return MCC_ERR_TIMEOUT;
-	case -ENOMEM:
+	case ENOMEM:
 		return MCC_ERR_NOMEM;
 	case 0:
 		return MCC_SUCCESS;
@@ -328,15 +291,15 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
 
 	switch (errno)
 	{
-	case -EFAULT:
+	case EFAULT:
 		return MCC_ERR_DEV;
-	case -EBUSY:
+	case EBUSY:
 		return MCC_ERR_SEMAPHORE;
-	case -EINVAL:
+	case EINVAL:
 		return MCC_ERR_ENDPOINT;
-	case -ETIME:
+	case ETIME:
 		return MCC_ERR_TIMEOUT;
-	case -ENOMEM:
+	case ENOMEM:
 		return MCC_ERR_NOMEM;
 	case 0:
 		return MCC_SUCCESS;
@@ -385,15 +348,15 @@ int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_
 
 	switch (errno)
 	{
-	case -EFAULT:
+	case EFAULT:
 		return MCC_ERR_DEV;
-	case -EBUSY:
+	case EBUSY:
 		return MCC_ERR_SEMAPHORE;
-	case -EINVAL:
+	case EINVAL:
 		return MCC_ERR_ENDPOINT;
-	case -ETIME:
+	case ETIME:
 		return MCC_ERR_TIMEOUT;
-	case -ENOMEM:
+	case ENOMEM:
 		return MCC_ERR_NOMEM;
 	case 0:
 		// data pointer = bookeeping offset of the base of the buffer + offset into the data part of the buffer
