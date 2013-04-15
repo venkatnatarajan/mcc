@@ -234,15 +234,15 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
 
 	switch (errno)
 	{
-	case -EFAULT:
+	case EFAULT:
 		return MCC_ERR_DEV;
-	case -EBUSY:
+	case EBUSY:
 		return MCC_ERR_SEMAPHORE;
-	case -EINVAL:
+	case EINVAL:
 		return MCC_ERR_ENDPOINT;
-	case -ETIME:
+	case ETIME:
 		return MCC_ERR_TIMEOUT;
-	case -ENOMEM:
+	case ENOMEM:
 		return MCC_ERR_NOMEM;
 	case 0:
 		return MCC_SUCCESS;
@@ -291,15 +291,15 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
 
 	switch (errno)
 	{
-	case -EFAULT:
+	case EFAULT:
 		return MCC_ERR_DEV;
-	case -EBUSY:
+	case EBUSY:
 		return MCC_ERR_SEMAPHORE;
-	case -EINVAL:
+	case EINVAL:
 		return MCC_ERR_ENDPOINT;
-	case -ETIME:
+	case ETIME:
 		return MCC_ERR_TIMEOUT;
-	case -ENOMEM:
+	case ENOMEM:
 		return MCC_ERR_NOMEM;
 	case 0:
 		return MCC_SUCCESS;
@@ -348,15 +348,15 @@ int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_
 
 	switch (errno)
 	{
-	case -EFAULT:
+	case EFAULT:
 		return MCC_ERR_DEV;
-	case -EBUSY:
+	case EBUSY:
 		return MCC_ERR_SEMAPHORE;
-	case -EINVAL:
+	case EINVAL:
 		return MCC_ERR_ENDPOINT;
-	case -ETIME:
+	case ETIME:
 		return MCC_ERR_TIMEOUT;
-	case -ENOMEM:
+	case ENOMEM:
 		return MCC_ERR_NOMEM;
 	case 0:
 		// data pointer = bookeeping offset of the base of the buffer + offset into the data part of the buffer
