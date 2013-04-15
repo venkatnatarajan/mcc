@@ -323,8 +323,8 @@ static ssize_t mcc_read(struct file *f, char __user *buf, size_t len, loff_t *of
 					else if(retval < 0)
 						return retval;
 				}
+				break;
 			}
-			break;
 		}
 	}
 
@@ -475,14 +475,6 @@ static long mcc_ioctl(struct file *f, unsigned cmd, unsigned long arg)
 		return MCC_SUCCESS;
 
 	case MCC_CREATE_ENDPOINT:
-		if(mcc_sema4_grab(MCC_SHMEM_SEMAPHORE_NUMBER))
-			return -EBUSY;
-		{
-			retval = deregister_queue(endpoint);
-			if(retval == MCC_SUCCESS)
-				retval = mcc_remove_endpoint(endpoint);
-		}
-		mcc_sema4_release(MCC_SHMEM_SEMAPHORE_NUMBER);
 	case MCC_DESTROY_ENDPOINT:
 		if (copy_from_user(&endpoint, buf, sizeof(endpoint)))
 			return -EFAULT;
