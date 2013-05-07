@@ -128,6 +128,8 @@ int mcc_create_endpoint(MCC_ENDPOINT *endpoint, MCC_PORT port)
 			return MCC_ERR_SEMAPHORE;
 		if(errno == EINVAL)
 			return MCC_ERR_ENDPOINT;
+		if(errno == ENOMEM)
+			return MCC_ERR_NOMEM;
 	}
 
     return MCC_SUCCESS;
