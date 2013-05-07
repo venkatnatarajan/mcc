@@ -502,7 +502,12 @@ static long mcc_ioctl(struct file *f, unsigned cmd, unsigned long arg)
 		}
 		mcc_sema4_release(MCC_SHMEM_SEMAPHORE_NUMBER);
 
-		return retval == MCC_SUCCESS ? MCC_SUCCESS : -EINVAL;
+		if ( retval == MCC_SUCCESS )
+			return MCC_SUCCESS;
+		else if ( retval == MCC_ERR_NOMEM )
+			return -ENOMEM;
+		else
+		 	return -EINVAL;
 
 	case MCC_SET_RECEIVE_ENDPOINT:
 	case MCC_SET_SEND_ENDPOINT:
