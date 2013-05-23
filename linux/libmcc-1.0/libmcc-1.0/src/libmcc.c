@@ -275,6 +275,8 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
  */
 int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size, MCC_MEM_SIZE *recv_size, unsigned int timeout_us)
 {
+	if( ioctl(fd, MCC_CHECK_ENDPOINT_EXISTS, endpoint) )
+		return MCC_ERR_ENDPOINT;
 	int retval = set_io_modes(MCC_SET_RECEIVE_ENDPOINT, &recv_endpoint, endpoint, timeout_us);
 	if(retval)
 		return retval;
