@@ -524,7 +524,7 @@ static long mcc_ioctl(struct file *f, unsigned cmd, unsigned long arg)
 			return -EBUSY;
 
 		// has it been registered ?
-		if(!mcc_get_endpoint_list(endpoint)) {
+		if(endpoint.port == MCC_RESERVED_PORT_NUMBER || !mcc_get_endpoint_list(endpoint)) {
 			mcc_sema4_release(MCC_SHMEM_SEMAPHORE_NUMBER);
 			return -EINVAL;
 		}
