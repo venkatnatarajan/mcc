@@ -113,41 +113,42 @@
 
 MCC_ENDPOINT    tea_control_endpoint = {MCC_TEA_CORE,MCC_TEA_NODE,MCC_TEA_CTRL_EP_PORT};
 MCC_ENDPOINT    uut_control_endpoint = {MCC_UUT_CORE,MCC_UUT_NODE,MCC_UUT_CTRL_EP_PORT};
-MCC_ENDPOINT    null_endpoint = {0,0,0};
+MCC_ENDPOINT    invalid_endpoint_reserved_port = {0,0,MCC_RESERVED_PORT_NUMBER};
+MCC_ENDPOINT    invalid_endpoint_not_created = {2,2,2};
 
 #if defined(__IAR_SYSTEMS_ICC__)
 __packed
 #endif
 struct control_message
 {
-    uint_8    CMD;
-    uint_8    ACK_REQUIRED;
-    uint_8    DATA[100];
+    unsigned int CMD;
+    unsigned int ACK_REQUIRED;
+    char         DATA[100];
 #if defined(__IAR_SYSTEMS_ICC__)
 };
 #else
 }__attribute__((packed));
 #endif
-typedef struct control_message CONTROL_MESSAGE, _PTR_ CONTROL_MESSAGE_PTR;
+typedef struct control_message CONTROL_MESSAGE, * CONTROL_MESSAGE_PTR;
 
 #if defined(__IAR_SYSTEMS_ICC__)
 __packed
 #endif
 struct acknowledge_message
 {
-    uint_8 CMD_ACK;
-    int    RETURN_VALUE;
-    int    TS1_SEC;
-    int    TS1_MSEC;
-    int    TS2_SEC;
-    int    TS2_MSEC;
-    uint_8 RESP_DATA[100];
+	unsigned int CMD_ACK;
+    int          RETURN_VALUE;
+    int          TS1_SEC;
+    int          TS1_MSEC;
+    int          TS2_SEC;
+    int          TS2_MSEC;
+    char         RESP_DATA[100];
 #if defined(__IAR_SYSTEMS_ICC__)
 };
 #else
 }__attribute__((packed));
 #endif
-typedef struct acknowledge_message ACKNOWLEDGE_MESSAGE, _PTR_ ACKNOWLEDGE_MESSAGE_PTR;
+typedef struct acknowledge_message ACKNOWLEDGE_MESSAGE, * ACKNOWLEDGE_MESSAGE_PTR;
 
 #if defined(__IAR_SYSTEMS_ICC__)
 __packed
@@ -162,7 +163,7 @@ struct control_message_data_create_ep_param
 #else
 }__attribute__((packed));
 #endif
-typedef struct control_message_data_create_ep_param CONTROL_MESSAGE_DATA_CREATE_EP_PARAM, _PTR_ CONTROL_MESSAGE_DATA_CREATE_EP_PARAM_PTR;
+typedef struct control_message_data_create_ep_param CONTROL_MESSAGE_DATA_CREATE_EP_PARAM, * CONTROL_MESSAGE_DATA_CREATE_EP_PARAM_PTR;
 
 #if defined(__IAR_SYSTEMS_ICC__)
 __packed
@@ -176,7 +177,7 @@ struct control_message_data_destroy_ep_param
 #else
 }__attribute__((packed));
 #endif
-typedef struct control_message_data_destroy_ep_param CONTROL_MESSAGE_DATA_DESTROY_EP_PARAM, _PTR_ CONTROL_MESSAGE_DATA_DESTROY_EP_PARAM_PTR;
+typedef struct control_message_data_destroy_ep_param CONTROL_MESSAGE_DATA_DESTROY_EP_PARAM, * CONTROL_MESSAGE_DATA_DESTROY_EP_PARAM_PTR;
 
 #if defined(__IAR_SYSTEMS_ICC__)
 __packed
@@ -184,7 +185,7 @@ __packed
 struct control_message_data_send_param
 {
     MCC_ENDPOINT dest_endpoint;
-    uint_8       msg[50]; //if empty send the content of the uup_app_buffer
+    char         msg[50]; //if empty send the content of the uup_app_buffer
     MCC_MEM_SIZE msg_size;
     unsigned int timeout_us;
     MCC_ENDPOINT uut_endpoint; //in case of uup_app_buffer has to be used, specify the UUT endpoint
@@ -195,7 +196,7 @@ struct control_message_data_send_param
 #else
 }__attribute__((packed));
 #endif
-typedef struct control_message_data_send_param CONTROL_MESSAGE_DATA_SEND_PARAM, _PTR_ CONTROL_MESSAGE_DATA_SEND_PARAM_PTR;
+typedef struct control_message_data_send_param CONTROL_MESSAGE_DATA_SEND_PARAM, * CONTROL_MESSAGE_DATA_SEND_PARAM_PTR;
 
 #if defined(__IAR_SYSTEMS_ICC__)
 __packed
@@ -205,14 +206,14 @@ struct control_message_data_recv_param
     MCC_ENDPOINT uut_endpoint;
     MCC_MEM_SIZE uut_app_buffer_size;
     unsigned int timeout_us;
-    uint_8       mode;
+    unsigned int mode;
     MCC_ENDPOINT endpoint_to_ack;
 #if defined(__IAR_SYSTEMS_ICC__)
 };
 #else
 }__attribute__((packed));
 #endif
-typedef struct control_message_data_recv_param CONTROL_MESSAGE_DATA_RECV_PARAM, _PTR_ CONTROL_MESSAGE_DATA_RECV_PARAM_PTR;
+typedef struct control_message_data_recv_param CONTROL_MESSAGE_DATA_RECV_PARAM, * CONTROL_MESSAGE_DATA_RECV_PARAM_PTR;
 
 #if defined(__IAR_SYSTEMS_ICC__)
 __packed
@@ -226,7 +227,7 @@ struct control_message_data_msg_avail_param
 #else
 }__attribute__((packed));
 #endif
-typedef struct control_message_data_msg_avail_param CONTROL_MESSAGE_DATA_MSG_AVAIL_PARAM, _PTR_ CONTROL_MESSAGE_DATA_MSG_AVAIL_PARAM_PTR;
+typedef struct control_message_data_msg_avail_param CONTROL_MESSAGE_DATA_MSG_AVAIL_PARAM, * CONTROL_MESSAGE_DATA_MSG_AVAIL_PARAM_PTR;
 
 #if defined(__IAR_SYSTEMS_ICC__)
 __packed
@@ -240,7 +241,7 @@ struct control_message_data_get_info_param
 #else
 }__attribute__((packed));
 #endif
-typedef struct control_message_data_get_info_param CONTROL_MESSAGE_DATA_GET_INFO_PARAM, _PTR_ CONTROL_MESSAGE_DATA_GET_INFO_PARAM_PTR;
+typedef struct control_message_data_get_info_param CONTROL_MESSAGE_DATA_GET_INFO_PARAM, * CONTROL_MESSAGE_DATA_GET_INFO_PARAM_PTR;
 
 extern void main_task(uint_32);
 extern void tc_1_main_task(void);

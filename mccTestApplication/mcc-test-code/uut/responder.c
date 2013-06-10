@@ -113,7 +113,7 @@ void responder_task(uint_32 dummy)
 #if PRINT_ON
             _core_mutex_lock(coremutex_app_ptr);
             printf("Responder task received a msg\n");
-            printf("Message: Size=%x, CMD = %x, DATA = %x\n", num_of_received_control_bytes, msg.CMD, msg.DATA);
+            printf("Message: Size=0x%x, CMD = 0x%x, DATA = 0x%x 0x%x 0x%x 0x%x\n", num_of_received_control_bytes, msg.CMD, msg.DATA[0], msg.DATA[1], msg.DATA[2], msg.DATA[3]);
             _core_mutex_unlock(coremutex_app_ptr);
 #endif
 
@@ -228,7 +228,9 @@ void responder_task(uint_32 dummy)
                 if(ACK_REQUIRED_YES == msg.ACK_REQUIRED) {
                     ack_msg.CMD_ACK = CTR_CMD_MSG_AVAIL;
                     ack_msg.RETURN_VALUE = ret_value;
-                    mcc_memcpy((void*)uut_app_buffer_ptr[data_msg_avail_param->uut_endpoint.port], (void*)ack_msg.RESP_DATA, sizeof(unsigned int));
+                    if(MCC_SUCCESS == ret_value) {
+                        mcc_memcpy((void*)uut_app_buffer_ptr[data_msg_avail_param->uut_endpoint.port], (void*)ack_msg.RESP_DATA, sizeof(unsigned int));
+                    }
                     ret_value = mcc_send(&data_msg_avail_param->endpoint_to_ack, &ack_msg, sizeof(ACKNOWLEDGE_MESSAGE), 0xFFFFFFFF);
                 }
                 break;
