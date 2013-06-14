@@ -474,6 +474,12 @@ static long mcc_ioctl(struct file *f, unsigned cmd, unsigned long arg)
 		priv_p->this_node = this_node;
 		return MCC_SUCCESS;
 
+	case MCC_CHECK_ENDPOINT_EXISTS:
+		if (copy_from_user(&endpoint, buf, sizeof(endpoint)))
+                        return -EFAULT;
+		if (endpoint.port == MCC_RESERVED_PORT_NUMBER)
+			return -EINVAL;
+		return !mcc_get_endpoint_list(endpoint);
 	case MCC_CREATE_ENDPOINT:
 	case MCC_DESTROY_ENDPOINT:
 		if (copy_from_user(&endpoint, buf, sizeof(endpoint)))
@@ -518,7 +524,7 @@ static long mcc_ioctl(struct file *f, unsigned cmd, unsigned long arg)
 			return -EBUSY;
 
 		// has it been registered ?
-		if(!mcc_get_endpoint_list(endpoint)) {
+		if(endpoint.port == MCC_RESERVED_PORT_NUMBER || !mcc_get_endpoint_list(endpoint)) {
 			mcc_sema4_release(MCC_SHMEM_SEMAPHORE_NUMBER);
 			return -EINVAL;
 		}
