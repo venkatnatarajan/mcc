@@ -23,6 +23,7 @@
 
 #include <linux/mcc_common.h>
 #include <linux/mcc_linux.h>
+#include <linux/mcc_config.h>
 
 #include <stdio.h>
 #include <unistd.h>
@@ -226,6 +227,8 @@ int set_io_modes(int set_endpoint_command, MCC_ENDPOINT *current_endpoint, MCC_E
  */
 int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned int timeout_us)
 {
+	if(msg_size > MCC_ATTR_BUFFER_SIZE_IN_BYTES)
+		return MCC_ERR_INVAL;
 	int retval = set_io_modes(MCC_SET_SEND_ENDPOINT, &send_endpoint, endpoint, timeout_us);
 	if(retval)
 		return retval;
@@ -275,6 +278,8 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
  */
 int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size, MCC_MEM_SIZE *recv_size, unsigned int timeout_us)
 {
+	if( ioctl(fd, MCC_CHECK_ENDPOINT_EXISTS, endpoint) )
+		return MCC_ERR_ENDPOINT;
 	int retval = set_io_modes(MCC_SET_RECEIVE_ENDPOINT, &recv_endpoint, endpoint, timeout_us);
 	if(retval)
 		return retval;
