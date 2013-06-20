@@ -121,9 +121,9 @@ __packed
 #endif
 struct control_message
 {
-    unsigned int CMD;
-    unsigned int ACK_REQUIRED;
-    char         DATA[100];
+    uint_32    CMD;
+    uint_32    ACK_REQUIRED;
+    uint_32    DATA[100];
 #if defined(__IAR_SYSTEMS_ICC__)
 };
 #else
@@ -136,13 +136,13 @@ __packed
 #endif
 struct acknowledge_message
 {
-	unsigned int CMD_ACK;
-    int          RETURN_VALUE;
-    int          TS1_SEC;
-    int          TS1_MSEC;
-    int          TS2_SEC;
-    int          TS2_MSEC;
-    char         RESP_DATA[100];
+    uint_32 CMD_ACK;
+    int    RETURN_VALUE;
+    int    TS1_SEC;
+    int    TS1_MSEC;
+    int    TS2_SEC;
+    int    TS2_MSEC;
+    uint_32 RESP_DATA[100];
 #if defined(__IAR_SYSTEMS_ICC__)
 };
 #else
@@ -185,7 +185,7 @@ __packed
 struct control_message_data_send_param
 {
     MCC_ENDPOINT dest_endpoint;
-    char         msg[50]; //if empty send the content of the uup_app_buffer
+    uint_32       msg[50]; //if empty send the content of the uup_app_buffer
     MCC_MEM_SIZE msg_size;
     unsigned int timeout_us;
     MCC_ENDPOINT uut_endpoint; //in case of uup_app_buffer has to be used, specify the UUT endpoint
@@ -206,7 +206,7 @@ struct control_message_data_recv_param
     MCC_ENDPOINT uut_endpoint;
     MCC_MEM_SIZE uut_app_buffer_size;
     unsigned int timeout_us;
-    unsigned int mode;
+    uint_32       mode;
     MCC_ENDPOINT endpoint_to_ack;
 #if defined(__IAR_SYSTEMS_ICC__)
 };

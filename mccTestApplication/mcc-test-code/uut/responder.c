@@ -208,7 +208,7 @@ void responder_task(uint_32 dummy)
                     }
                     else {
                         /* send what received in the control command */
-                        ret_value = mcc_send(&data_send_param->dest_endpoint, data_send_param->msg, data_send_param->msg_size, data_send_param->timeout_us);
+                        ret_value = mcc_send(&data_send_param->dest_endpoint, (void*)data_send_param->msg, data_send_param->msg_size, data_send_param->timeout_us);
                     }
                     if((0 != data_send_param->timeout_us) && (0xffffffff != data_send_param->timeout_us)) {
                         _time_get(&uut_time);
