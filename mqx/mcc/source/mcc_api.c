@@ -348,10 +348,10 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
         return return_value;
 
     /* Copy the message into the MCC receive buffer */
+    MCC_DCACHE_INVALIDATE_MLINES((void*)buf, sizeof(MCC_RECEIVE_BUFFER));
     mcc_memcpy(msg, (void*)buf->data, (unsigned int)msg_size);
-    MCC_DCACHE_FLUSH_MLINES((void*)buf->data, msg_size);
     buf->data_len = msg_size;
-    MCC_DCACHE_FLUSH_MLINES((void*)&buf->data_len, sizeof(MCC_MEM_SIZE));
+    MCC_DCACHE_FLUSH_MLINES((void*)buf, sizeof(MCC_RECEIVE_BUFFER));
 
     /* Semaphore-protected section start */
     return_value = mcc_get_semaphore();
