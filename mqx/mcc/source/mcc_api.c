@@ -342,21 +342,11 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
         buf = mcc_dequeue_buffer(&bookeeping_data->free_list);
     }
 
-    /* Semaphore-protected section end */
-    mcc_release_semaphore();
-    if(return_value != MCC_SUCCESS)
-        return return_value;
-
     /* Copy the message into the MCC receive buffer */
     MCC_DCACHE_INVALIDATE_MLINES((void*)buf, sizeof(MCC_RECEIVE_BUFFER));
     mcc_memcpy(msg, (void*)buf->data, (unsigned int)msg_size);
     buf->data_len = msg_size;
     MCC_DCACHE_FLUSH_MLINES((void*)buf, sizeof(MCC_RECEIVE_BUFFER));
-
-    /* Semaphore-protected section start */
-    return_value = mcc_get_semaphore();
-    if(return_value != MCC_SUCCESS)
-        return return_value;
 
     /* Get list of buffers kept by the particular endpoint */
     list = mcc_get_endpoint_list(*endpoint);
