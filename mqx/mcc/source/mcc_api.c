@@ -45,7 +45,15 @@ const char * const version_string = MCC_VERSION_STRING;
 /*!
  * \brief This function initializes the Multi Core Communication subsystem for a given node.
  *
- * This function should only be called once per node (once in MQX, once per process in Linux).
+ * This function should only be called once per node (once in MQX, once per a process in Linux).
+ * It tries to initialize the bookkeeping structure when the init_string member of this structure
+ * is not equal to MCC_INIT_STRING, i.e. when no other core had performed the initialization yet.
+ * Note, that this way of bookkeeping data re-initialization protection is not powerful enough and
+ * the user application should not rely on this method, instead the application should be designed 
+ * to unambiguously assign the core that will perform the MCC initialization as the first. It is 
+ * recommended to clear the shared memory before the first core is attempting to initialize the MCC 
+ * (in some cases MCC_INIT_STRING remains in the shared memory after the application reset and could
+ * cause that the bookkeeping data structure is not initialized correctly). 
  *
  * \param[in] node Node number that will be used in endpoints created by this process.
  *
@@ -337,8 +345,8 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
             _lwevent_clear(&lwevent_buffer_freed, 1);
 #endif
         }
-        MCC_DCACHE_INVALIDATE_MLINES((void*)&bookeeping_data->free_list, sizeof(MCC_RECEIVE_LIST*));
         mcc_get_semaphore();
+        MCC_DCACHE_INVALIDATE_MLINES((void*)&bookeeping_data->free_list, sizeof(MCC_RECEIVE_LIST*));
         buf = mcc_dequeue_buffer(&bookeeping_data->free_list);
     }
 
@@ -463,15 +471,22 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
                 _lwevent_wait_until(&lwevent_buffer_queued[lwevent_index], 1<<lwevent_group_index, TRUE, &tick_time);
             }
 #endif
-            MCC_DCACHE_INVALIDATE_MLINES((void*)list, sizeof(MCC_RECEIVE_LIST*));
         }
     }
 
     /* Clear event bit specified for the particular endpoint in the lwevent_buffer_queued lwevent group */
     _lwevent_clear(&lwevent_buffer_queued[lwevent_index], 1<<lwevent_group_index);
 
+    /* Semaphore-protected section start */
+    return_value = mcc_get_semaphore();
+    if(return_value != MCC_SUCCESS)
+        return return_value;
+
+    MCC_DCACHE_INVALIDATE_MLINES((void*)list, sizeof(MCC_RECEIVE_LIST*));
+
     if(list->head == (MCC_RECEIVE_BUFFER*)0) {
         /* Buffer not dequeued before the timeout */
+        mcc_release_semaphore();
         return MCC_ERR_TIMEOUT;
     }
 
@@ -483,11 +498,6 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
     *recv_size = (MCC_MEM_SIZE)(list->head->data_len);
     MCC_DCACHE_INVALIDATE_MLINES((void*)&list->head->data, list->head->data_len);
     mcc_memcpy((void*)list->head->data, buffer, list->head->data_len);
-
-    /* Semaphore-protected section start */
-    return_value = mcc_get_semaphore();
-    if(return_value != MCC_SUCCESS)
-        return return_value;
 
     /* Dequeue the buffer from the endpoint list */
     buf = mcc_dequeue_buffer(list);
@@ -520,7 +530,7 @@ int mcc_recv_copy(MCC_ENDPOINT *endpoint, void *buffer, MCC_MEM_SIZE buffer_size
  * This is the "zero-copy receive" version of the MCC receive function. No data is copied. 
  * Only the pointer to the data is returned. This version is fast, but it requires the user to manage
  * buffer allocation. Specifically, the user must decide when a buffer is no longer in use and
- * make the appropriate API call to free it.
+ * make the appropriate API call to free it, see mcc_free_buffer.
  *
  * \param[in] endpoint Pointer to the receiving endpoint to receive from.
  * \param[out] buffer_p Pointer to the MCC buffer of the shared memory where the received data is stored.
@@ -583,28 +593,30 @@ int mcc_recv_nocopy(MCC_ENDPOINT *endpoint, void **buffer_p, MCC_MEM_SIZE *recv_
                 _lwevent_wait_until(&lwevent_buffer_queued[lwevent_index], 1<<lwevent_group_index, TRUE, &tick_time);
             }
 #endif
-            MCC_DCACHE_INVALIDATE_MLINES((void*)list, sizeof(MCC_RECEIVE_LIST*));
         }
     }
 
     /* Clear event bit specified for the particular endpoint in the lwevent_buffer_queued lwevent group */
     _lwevent_clear(&lwevent_buffer_queued[lwevent_index], 1<<lwevent_group_index);
 
+    /* Semaphore-protected section start */
+    return_value = mcc_get_semaphore();
+    if(return_value != MCC_SUCCESS)
+        return return_value;
+
+    MCC_DCACHE_INVALIDATE_MLINES((void*)list, sizeof(MCC_RECEIVE_LIST*));
+
     if(list->head == (MCC_RECEIVE_BUFFER*)0) {
         /* Buffer not dequeued before the timeout */
+        mcc_release_semaphore();
         return MCC_ERR_TIMEOUT;
-	}
+    }
 
     /* Get the message pointer from the head of the receive buffer list */
     MCC_DCACHE_INVALIDATE_MLINES((void*)&list->head->data, list->head->data_len);
     *buffer_p = (void*)&list->head->data;
     MCC_DCACHE_INVALIDATE_MLINES((void*)&list->head->data_len, sizeof(MCC_MEM_SIZE));
     *recv_size = (MCC_MEM_SIZE)(list->head->data_len);
-
-    /* Semaphore-protected section start */
-    return_value = mcc_get_semaphore();
-    if(return_value != MCC_SUCCESS)
-        return return_value;
 
     /* Dequeue the buffer from the endpoint list */
     mcc_dequeue_buffer(list);
