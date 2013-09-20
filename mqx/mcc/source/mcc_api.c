@@ -49,9 +49,9 @@ const char * const version_string = MCC_VERSION_STRING;
  * It tries to initialize the bookkeeping structure when the init_string member of this structure
  * is not equal to MCC_INIT_STRING, i.e. when no other core had performed the initialization yet.
  * Note, that this way of bookkeeping data re-initialization protection is not powerful enough and
- * the user application should not rely on this method, instead the application should be designed 
- * to unambiguously assign the core that will perform the MCC initialization as the first. It is 
- * recommended to clear the shared memory before the first core is attempting to initialize the MCC 
+ * the user application should not rely on this method. Instead, the application should be designed 
+ * to unambiguously assign the core that will perform the MCC initialization. 
+ * Clear the shared memory before the first core is attempting to initialize the MCC 
  * (in some cases MCC_INIT_STRING remains in the shared memory after the application reset and could
  * cause that the bookkeeping data structure is not initialized correctly). 
  *
@@ -400,7 +400,7 @@ int mcc_send(MCC_ENDPOINT *endpoint, void *msg, MCC_MEM_SIZE msg_size, unsigned 
 
 /*!
  * \brief This function receives a message from the specified endpoint if one is available.
- *        The data will be copied from the receive buffer into the user supplied buffer.
+ *        The data is copied from the receive buffer into the user supplied buffer.
  *
  * This is the "receive with copy" version of the MCC receive function. This version is simple
  * to use but it requires copying data from shared memory into the user space buffer.

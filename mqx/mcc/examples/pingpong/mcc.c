@@ -54,8 +54,8 @@
  * 0: Non-blocking mode (task is waiting for a new message in a spin loop) */
 #define MCC_APP_BLOCKING_MODE  (1)
 
-extern void main_task(uint_32);
-extern void responder_task(uint_32);
+extern void main_task(uint32_t);
+extern void responder_task(uint32_t);
 
 #if PSP_MQX_CPU_IS_VYBRID_A5
 const TASK_TEMPLATE_STRUCT  MQX_template_list[] =
@@ -86,7 +86,7 @@ MCC_ENDPOINT    mqx_endpoint_m4 = {1,MCC_MQX_NODE_M4,MCC_MQX_RESPONDER_PORT};
 *     sending a new message.
 *END*-----------------------------------------------------------*/
 
-void main_task(uint_32 node_num)
+void main_task(uint32_t node_num)
 {
     THE_MESSAGE     msg;
     MCC_MEM_SIZE    num_of_received_bytes;
@@ -119,6 +119,7 @@ void main_task(uint_32 node_num)
     while (1) {
         /* wait until the remote endpoint is created by the other core */
         while(MCC_ERR_ENDPOINT == mcc_send(&mqx_endpoint_m4, &msg, sizeof(THE_MESSAGE), 0xffffffff)) {
+            _time_delay(1);
         }
 #if MCC_APP_BLOCKING_MODE
         ret_value = mcc_recv_copy(&mqx_endpoint_a5, &msg, sizeof(THE_MESSAGE), &num_of_received_bytes, 0xffffffff);
@@ -152,7 +153,7 @@ void main_task(uint_32 node_num)
 *     the message is returned to the sender.
 *END*-----------------------------------------------------------*/
 
-void responder_task(uint_32 node_num)
+void responder_task(uint32_t node_num)
 {
     THE_MESSAGE     msg;
     MCC_MEM_SIZE    num_of_received_bytes;

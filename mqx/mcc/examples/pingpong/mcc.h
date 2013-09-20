@@ -43,7 +43,7 @@
 
 typedef struct the_message
 {
-   uint_32  DATA;
-} THE_MESSAGE, _PTR_ THE_MESSAGE_PTR;
+   uint32_t  DATA;
+} THE_MESSAGE, * THE_MESSAGE_PTR;
 
 #endif

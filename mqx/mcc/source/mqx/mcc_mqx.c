@@ -38,6 +38,7 @@
 CORE_MUTEX_PTR cm_ptr;
 LWEVENT_STRUCT lwevent_buffer_queued[MCC_MQX_LWEVENT_COMPONENTS_COUNT];
 LWEVENT_STRUCT lwevent_buffer_freed;
+static unsigned int cpu_to_cpu_isr_vector = MCC_VECTOR_NUMBER_INVALID; 
 
 /*!
  * \brief This function is the CPU-to-CPU interrupt handler.
@@ -56,19 +57,31 @@ static void mcc_cpu_to_cpu_isr(void *param)
 {
     MCC_SIGNAL serviced_signal;
 
-    /* Clear the interrupt flag */
-    mcc_clear_cpu_to_cpu_interrupt(MCC_CORE_NUMBER);
-
-    while(MCC_SUCCESS == mcc_dequeue_signal(MCC_CORE_NUMBER, &serviced_signal)) {
-        if((serviced_signal.type == BUFFER_QUEUED) &&
-           (serviced_signal.destination.core == MCC_CORE_NUMBER)) {
-            /* Unblock receiver, in case of asynchronous communication */
-            _lwevent_set(&lwevent_buffer_queued[serviced_signal.destination.port / MCC_MQX_LWEVENT_GROUP_SIZE], 1<<(serviced_signal.destination.port % MCC_MQX_LWEVENT_GROUP_SIZE));
+    /* Try to lock the core mutex. If successfully locked, perform mcc_dequeue_signal(), release the gate and 
+       finally clear the interrupt flag. If trylock fails (HW semaphore already locked by another core), 
+       do not clear the interrupt flag – this way the CPU-to-CPU isr is re-issued again until 
+       the HW semaphore is locked. Higher priority ISRs will be serviced while issued at the time 
+       we are waiting for the unlocked gate. To prevent trylog failure due to core mutex currently locked by our own core
+       (a task), the cpu-to-cpu isr is temporarily disabled when mcc_get_semaphore() is called and re-enabled again
+       when mcc_release_semaphore() is issued. */
+    if(COREMUTEX_LOCKED == _core_mutex_trylock(cm_ptr)) {
+        while(MCC_SUCCESS == mcc_dequeue_signal(MCC_CORE_NUMBER, &serviced_signal)) {
+            if((serviced_signal.type == BUFFER_QUEUED) &&
+               (serviced_signal.destination.core == MCC_CORE_NUMBER)) {
+                /* Unblock receiver, in case of asynchronous communication */
+                _lwevent_set(&lwevent_buffer_queued[serviced_signal.destination.port / MCC_MQX_LWEVENT_GROUP_SIZE], 1<<(serviced_signal.destination.port % MCC_MQX_LWEVENT_GROUP_SIZE));
+            }
+            else if(serviced_signal.type == BUFFER_FREED) {
+                /* Unblock sender, in case of asynchronous communication */
+                _lwevent_set(&lwevent_buffer_freed, 1);
+            }
         }
-        else if(serviced_signal.type == BUFFER_FREED) {
-            /* Unblock sender, in case of asynchronous communication */
-            _lwevent_set(&lwevent_buffer_freed, 1);
-        }
+        
+        /* Unlocks the core mutex */ 
+        _core_mutex_unlock(cm_ptr);
+        
+        /* Clear the interrupt flag */
+        mcc_clear_cpu_to_cpu_interrupt(MCC_CORE_NUMBER);
     }
 }
 
@@ -114,10 +127,14 @@ int mcc_deinit_semaphore(unsigned int sem_num)
  */
 int mcc_get_semaphore(void)
 {
-    if(COREMUTEX_OK == _core_mutex_lock(cm_ptr))
+    _bsp_int_disable(cpu_to_cpu_isr_vector);
+    if(COREMUTEX_OK == _core_mutex_lock(cm_ptr)) {
         return MCC_SUCCESS;
-    else
+    }
+    else {
+        _bsp_int_enable(cpu_to_cpu_isr_vector);
         return MCC_ERR_SEMAPHORE;
+    }
 }
 
 /*!
@@ -128,8 +145,12 @@ int mcc_get_semaphore(void)
  */
 int mcc_release_semaphore(void)
 {
-    if(COREMUTEX_OK == _core_mutex_unlock(cm_ptr))
+    if(COREMUTEX_OK == _core_mutex_unlock(cm_ptr)) {
+        /* Enable the cpu-to-cpu isr just in case _core_mutex_unlock function has not woke up another task waiting for the core mutex. */
+        if (*cm_ptr->GATE_PTR != (MCC_CORE_NUMBER + 1))
+            _bsp_int_enable(cpu_to_cpu_isr_vector);
         return MCC_SUCCESS;
+    }
     else
         return MCC_ERR_SEMAPHORE;
 }
@@ -149,8 +170,10 @@ int mcc_register_cpu_to_cpu_isr(void)
     if(vector_number != MCC_VECTOR_NUMBER_INVALID) {
         _int_install_isr((_mqx_uint)vector_number, mcc_cpu_to_cpu_isr, NULL);
         mcc_clear_cpu_to_cpu_interrupt(MCC_CORE_NUMBER);
-        _bsp_int_init(vector_number, 3, 0, TRUE);
+        /* Priority of the cpu-to-cpu isr must be lower than the core mutex isr priority */
+        _bsp_int_init(vector_number, BSPCFG_CORE_MUTEX_PRIORITY + 1, 0, TRUE);
         _bsp_int_enable(vector_number);
+        cpu_to_cpu_isr_vector = vector_number;
         return MCC_SUCCESS;
     }
     else {
@@ -181,6 +204,6 @@ int mcc_generate_cpu_to_cpu_interrupt(void)
  */
 void mcc_memcpy(void *src, void *dest, unsigned int size)
 {
-    _mem_copy((pointer)src, (pointer)dest, (_mem_size)size);
+    _mem_copy((void *)src, (void *)dest, (_mem_size)size);
 }
 
